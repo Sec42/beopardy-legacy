@@ -4,51 +4,115 @@
 
 # This code is under the BSD Licence
 # (c) by Stefan `Sec` Zehl <sec@42.org>
-# $Id: beopardy,v 1.1 2000/12/04 02:48:47 sec Exp sec $
 
+use constant beopardy =>
+	q$Id: beopardy,v 1.2 2000/12/23 13:01:19 sec Exp sec $;
+
+my $ser_err=0;
 use strict;
 use Tk;
-use Tk::Font;
+#use Tk::Font;
 use Tk::X11Font;
+use Tk::Dialog;
 use Socket;
 use FileHandle;
+use Getopt::Std;
 
-my $debug=1;
+# Defaults
+my $debug=0;
 my $override=0;					# Ignore windowmanager?
 my $force=0;					# move focus for kbd-mode?
-my $tty=1;						# tty/serial input active?
-my $ser=1;						# tty/serial chooser.
-my $socket=1;					# tty emulated by tcp socket?
+my $tty=0;						# use tty/serial input?
+my $socket=0;					# tty emulated by tcp socket?
+my $geometry=0;					# How big should I be?
+my %opt;
 
-my ($width,$height)=(640,480);	# Size of game field.
+getopts('doftsg:h', \%opt);
+
+my %screen=( 320 => 200,
+			 640 => 480,
+		     800 => 600, 
+			1024 => 786);
+
+my @beopardy = split(/ /,beopardy);
+my $qwidth=35;
+
+if (defined $opt{h}){
+	print <<EOF;
+This is Beopardy $beopardy[2] $beopardy[3].
+
+-h	This help.
+-d	Debug mode. Print lots'o stuff.
+-o	Override. Ignore Windowmanager. (fullscreen)
+-f	Force keyboard focus.           (fullscreen)
+-t	Tty input. Use when Buzzers are connected.
+-s	Socket. Emulate Tty input via tcp socket (port 3333)
+-g	geometry. Select window size.
+	0: fullscreen (default)
+EOF
+	my $x=1;
+	foreach (sort {$a <=> $b } keys %screen){
+		printf "\t%1d: %4dx%4d\n",$x++,$_,$screen{$_};
+	}
+	print "";
+	exit(42);
+}
+
+$debug=1	if (defined $opt{d});
+$override=1	if (defined $opt{o});
+$force=1	if (defined $opt{f});
+$tty=1		if (defined $opt{t});
+$socket=1	if (defined $opt{s});
+
+if ($socket){$tty=1};	# socket emulates tty.
+
+my $tl = MainWindow -> new -> toplevel;
+$tl->appname(beopardy);
+my ($width,$height)=($tl->screenwidth,$tl->screenheight);	# Size of game field.
+
+if (defined $opt{g}){
+	if ($opt{g} =~ /^(\d+)[x*](\d+)$/){
+		($width,$height)=($1,$2);
+	} elsif ( defined $screen{$opt{g}}){
+		($width,$height)=($opt{g},$screen{$opt{g}});
+	}else{
+		my @x = (sort {$a<=>$b} keys %screen);
+		if ((--$opt{g}<=$#x) && ($opt{g}>0 )){
+			$width=$x[$opt{g}];
+			$height=$screen{$width};
+		};
+	};
+}
+
 my $catwidth =10;				# Width of categories.
 my $namewidth=10;				# Width of player names
-my $ser_inhibit=0;				# Global 'no input on serial now'
 
 if ($tty){
-print "Opening tty\n";
-if(!$ser){
-my $port = 3333;
-my $proto = getprotobyname('tcp');
-socket(Server, PF_INET, SOCK_STREAM, $proto)        || die "socket: $!";
-setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l", 1))   || die "setsockopt: $!";
-bind(Server, sockaddr_in($port, INADDR_ANY))        || die "bind: $!" ;
-listen(Server,SOMAXCONN)                            || die "listen: $ !";
-print "Connect to port $port...\n";
-my $paddr = accept(Client,Server);
-my($iport,$iaddr) = sockaddr_in($paddr);
-my $name = gethostbyaddr($iaddr,AF_INET);
-print "connection from $name [", inet_ntoa($iaddr), "] at port $iport";
-}else{
-	open(Client,"+>/dev/cuaa0") || die;
-};
-print "done.\n";
-autoflush Client;
+	print "Opening tty\n";
+	if($socket){
+		my $port = 3333;
+		my $proto = getprotobyname('tcp');
+		socket(Server, PF_INET, SOCK_STREAM, $proto)	|| die "socket: $!";
+		setsockopt(Server, SOL_SOCKET, SO_REUSEADDR, pack("l", 1))
+														|| die "setsockopt: $!";
+		bind(Server, sockaddr_in($port, INADDR_ANY))	|| die "bind: $!" ;
+		listen(Server,SOMAXCONN)						|| die "listen: $!";
+		print "Now connect to port $port...\n";
+		my $paddr = accept(Client,Server);
+		my($iport,$iaddr) = sockaddr_in($paddr);
+		my $name = gethostbyaddr($iaddr,AF_INET);
+		print "connection from $name [", inet_ntoa($iaddr), "] at port $iport";
+	}else{
+		# Be sure to set device to -crtscts 19200
+		open(Client,"+>/dev/cuaa0") || die "open: $!";
+	};
+	print "done.\n";
+	autoflush Client;
 };
 
 print "Reading questions....\n";
 my %jdata;
-open (J,"<Test.jd") || die;
+open (J,"<Jeopardy") || die;
 my ($nam,$c);
 while (<J>){
 	chomp;
@@ -62,20 +126,29 @@ while (<J>){
 		$c=0;
 		next;
 	}
+	if (!s/\\n/\n/){
+		s/(.{20,35})\s+/$1\n/mg;
+	};
 	$jdata{$nam}[++$c]=$_;
 };
 close(J);
 printf "%-20s:%2d\n",$nam,$c if ($debug);
+
 print "Totalling ",(scalar keys %jdata)," categories.\n";
 
-my @players=qw(Christoph Chris Nick);
-my @points=(0,0,0);
+my @players;
+if ($#ARGV>0){
+	@players=@ARGV;
+}else{
+	@players=qw(Foo Bar Baz);
+};
 
 unshift @players,"Nobody";
-unshift @points,0;
+my @points=(0)x($#players+2);
 
 my @Cat;
 my $gamefile=shift||"Test.jg";
+$gamefile .= ".jg" if ( -f $gamefile.".jg" );
 $gamefile =~ /^([^.]+)(.jg)?/;
 my $title=$1;		# Titel des Spielfelds.
 my $q=5;			# Wieviele Fragen/Kategorie?
@@ -100,15 +173,12 @@ for (@Cat){
 };
 print "\n";
 
-
 # Here starts the Tk part...
-my $tl = MainWindow -> new -> toplevel;
-
 my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--25-*-*-*-*-*-iso8859-1');
-print "Question-Font:\n$qfont\n";
+print "Question-Font:\n$qfont\n" if ($debug);
 
 my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--20-*-*-*-*-*-iso8859-1');
-print "Title-Font:\n$tfont\n";
+print "Title-Font:\n$tfont\n" if($debug);
 
 $tl->configure(-height => $height, -width => $width);
 $tl->resizable(0,0);
@@ -131,12 +201,10 @@ sub answerQuest;
 sub moveCrsr;
 sub ser_reset;
 
-&ser_reset;
-
 # Game-Buttons.
 my $bframe=$tl->Frame->pack(-fill=>'both',-expand=>1);
 my @button;	# The TkButtons 
-my @pts;	# Who got the points from this question?
+my @pts;	# Who got points from this question?
 my @frame;  # The TkFrames, one per category.
 for my $cat (0..$#Cat){
 	$frame[$cat]=$bframe->Frame->pack(
@@ -146,14 +214,14 @@ for my $cat (0..$#Cat){
 	);
 
 	$button[$cat][0] = $frame[$cat]->Label(
-			-width => $catwidth,
-			-text => $Cat[$cat],
-	)->pack(-fill => 'both');
+			-width	=> $catwidth,
+			-text	=> $Cat[$cat],
+	)->pack(-fill	=> 'both');
 
 	for my $q (1..$q) {
 		$button[$cat][$q] = $frame[$cat]->Button(
 				-text		=> "${q}00",
-				-command	=> [\&selectQuest,$cat,$q],
+				-command	=> [\&selectQuest,$tl,$cat,$q],
 		)->pack( -fill => 'both', -expand => 1);
 		$button[$cat][$q]->bind('<h>',[\&moveCrsr,$cat-1,$q  ]);
 		$button[$cat][$q]->bind('<j>',[\&moveCrsr,$cat  ,$q+1]);
@@ -161,7 +229,8 @@ for my $cat (0..$#Cat){
 		$button[$cat][$q]->bind('<l>',[\&moveCrsr,$cat+1,$q  ]);
 	};
 };
-$button[0][1]->focusForce if ($force);
+#$button[0][1]->focusForce if ($force);
+$button[0][1]->focus;
 
 # Scoreboard.
 my $sframe=$tl->Frame->pack(-side=>'top',-fill=>'x');
@@ -192,22 +261,54 @@ for (1..$#players){
 	)->pack(-fill=>'x');
 };
 
+#print "Board done.\n";
+
 print "\nGame start.\n\n";
+
+if($tty){
+	my $dlg=$tl->Toplevel;
+	$dlg->Label(
+			-text	=> "Start",
+			-font	=> $qfont,
+	)->pack(
+			-fill	=>'x',
+			-expand	=>1,
+	);
+	my $bframe=$dlg->Frame->pack(-fill=>'both',-expand=>1);
+	$bframe->Button(
+			-text		=> 'Go ahead',
+			-command	=> sub { $dlg->destroy;&ser_reset}
+	)->pack(-side	=>'left')->focusForce;
+	$dlg->raise;
+	$dlg->grab;
+	$tl->lower($dlg);
+};
+
+#&ser_reset if($tty);
+
+# Make the 'resetting' window...
+my $reset=$tl->Toplevel;
+$reset->overrideredirect(1);
+$reset->resizable(0,0);
+$reset->geometry("-0+0");
+$reset->withdraw;
+$reset->Label(-text=>"resetting")->pack;
+
 MainLoop;
 
 # We selected a question...
 
 sub selectQuest{
-	my ($c,$f)=@_;
+	my ($otl,$c,$f)=@_;
 #	print "selected ",join(",",@_),"\n" if ($debug);
 	print "Q$f / \"$Cat[$c]\": $jdata{$Cat[$c]}[$f]\n";
 
-	my $tl = MainWindow->new->toplevel;
-
+	my $tl = $otl->Toplevel;
 	$tl->configure(-height => $height, -width => $width);
 	$tl->resizable(0,0);
 	$tl->packPropagate(0);	# Keep the size.
 	$tl->overrideredirect(1) if($override);
+	$tl->grab;
 
 	my $tlabel = $tl->Label(
 			-text	=> $Cat[$c],
@@ -215,70 +316,130 @@ sub selectQuest{
 			-font	=> $tfont,
 	) -> pack(-fill	=> 'x');
 
-	my $text;
-	($text=$jdata{$Cat[$c]}[$f])=~ s/\\n/\n/g;
 	my $question = $tl->Label(
-			-text	=> $text,
+			-text	=> $jdata{$Cat[$c]}[$f],
 			-font	=> $qfont,
 	)->pack(
 			-fill	=>'both',
 			-expand	=>1
 	);
 
-	$ser_inhibit=0;
-	$tl->fileevent(\*Client,'readable',[\&ser_answerQuest,$tl,$c,$f]) if($tty);
-
 	$tl->focusForce if ($force);
 
+	&ser_en($tl,$c,$f) if ($tty);
 	$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
 };
 
 sub ser_answerQuest {
-	my ($crap,$c,$f,$key)=@_;
-	if($ser_inhibit++){
-		print "Don't press now\n";
-#		return;
-	}
-	print "cb!\n";
+	my ($crap,$c,$f)=@_;
+
 	my $key=<Client>;
 	$key=~s/\r\n$//;
-	&answerQuest($crap,$c,$f,$key);
-	print "cb done\n";
+
+	my $tl=$crap->Toplevel;
+	$tl->Label(
+			-text	=> $players[$key],
+			-font	=> $qfont,
+	)->pack(
+			-fill	=>'x',
+			-expand	=>1,
+	);
+	my $bframe=$tl->Frame->pack(-fill=>'both',-expand=>1);
+
+	my $br=$bframe->Button(
+			-text		=> 'Richtig',
+			-command	=> [\&answerQuest,$crap,$c,$f,$key],
+	)->pack(-side	=>'left');
+	my $bf=$bframe->Button(
+			-text		=> 'Falsch',
+			-command	=> sub{
+							$tl->destroy;
+							&answerQuest($crap,$c,$f,-$key);
+							&ser_en($crap,$c,$f)},
+	)->pack(-side	=>'left');
+	my $bo=$bframe->Button(
+			-text		=> 'Oops',
+			-command	=> sub{$tl->destroy;
+							  &ser_reset;
+							  &ser_en($crap,$c,$f)},
+	)->pack;
+	$tl->bind('<q>',sub{$tl->destroy; &ser_reset; &ser_en($crap,$c,$f)});
+	$tl->bind('<o>',sub{$tl->destroy; &ser_reset; &ser_en($crap,$c,$f)});
+	$tl->bind('<r>',[\&answerQuest,$crap,$c,$f,$key]);
+	$tl->bind('<f>',sub{$tl->destroy;&answerQuest($crap,$c,$f,-$key);&ser_en($crap,$c,$f)});
+
+	$br->bind('<l>',sub{$bf->focus});
+	$bf->bind('<l>',sub{$bo->focus});
+	$bo->bind('<l>',sub{$br->focus});
+	$br->bind('<h>',sub{$bo->focus});
+	$bf->bind('<h>',sub{$br->focus});
+	$bo->bind('<h>',sub{$bf->focus});
+
+	$br->focusForce if($force);
+
+	print "ser_answer done\n";
 };
 
+sub ser_en{
+	print "Arg1: $_[0]\n";
+	$tl->fileevent(\*Client,'readable',[\&ser_answerQuest,@_]);
+};
+sub ser_dis{
+	$tl->fileevent(\*Client,'readable',[\&ser_noinp]);
+};
 
 # User answered the Question.
 sub answerQuest{
 	my ($crap,$c,$f,$key)=@_;
 	print "answered: $c $f $key\n";
+	my $sgn=1;
 	if($key eq "q"){
 		$crap->destroy;
 		$button[$c][$f]->focusForce if ($force);
 		return;
 	};
+	my $pos;
+	$key=-$pos if (($pos=index('0!"#$%&/()',$key))>0);
+	$key=-3  if($key eq '§');
 	$key="0" if($key eq "`"); # Be nice on ami-kbd
-	if($key=~/^\d$/){
-		if (($key <= $#players)&&($key>=0)){
-				print "good for ",$players[$key],"\n";
-				$points[$key]+=$f*100;
-				if(defined $pts[$c][$f]){
-					$points[$pts[$c][$f]]-=$f*100;
-					print "EDIT: $players[$pts[$c][$f]] lost answer\n";
-				};
-				$crap->destroy;
-				$button[$c][$f]->configure(
-						-text				=> $players[$key],
-						-relief				=> "flat",
-						-foreground			=>'grey',
-						-activeforeground	=>'grey',
-				);
-				$pts[$c][$f]=$key;
+	$key="0" if($key eq "^"); # Be nice on german-kbd
+
+	print "->$key\n" if ($debug);
+
+	if($key=~/^-?\d$/){
+		if ($key<0) {
+			$sgn=-$sgn;
+			$key=-$key;
+		};
+		if ($key <= $#players){
+			&updPlayfield($c,$f,$key,$sgn);
+			if ($sgn>0){
 				$button[$c][$f]->focusForce if ($force);
-				return;
+				$crap->destroy;
+			};
+			&ser_reset if ($tty);
+			return;
 		};
 	};
 	print "I don't like this key ($key)...\n" if($debug);
 };
+
+sub updPlayfield {
+	my ($c,$f,$key,$sgn)=@_;
+	print $sgn<0?"bad":"good"," for ",$players[$key],"\n";
+	$points[$key]+=$sgn*$f*100;
+	
+	push @{$pts[$c][$f]},$sgn*$key;
+#	my $pl=join("\n",map {($_<0?"-":" ").$players[abs]} @{$pts[$c][$f]});
+	my $pl=join("",map {($_<0?"-":"+").abs} @{$pts[$c][$f]});
+	print ">$pl<\n";
+	$button[$c][$f]->configure(
+			-text				=> $pl,
+			-relief				=> "flat",
+			-foreground			=>'grey',
+			-activeforeground	=>'grey',
+	);
+}
 
 sub moveCrsr{
 	my ($widget,$c,$f)=@_;
@@ -292,42 +453,50 @@ sub moveCrsr{
 
 sub ser_reset{
 	print "Resetting...\n" if ($debug);
-	my $ok=0;
+	my $ok;
+	$reset->deiconify;
+	$reset->grab;
 	do {
+		&ser_dis;
 		print Client "R\r\n";
 		$ok=<Client>;
-		if ($ok eq "N\r\n"){
-#			my $tl = MainWindow->new->toplevel;
-#
-#			$tl->configure(-height => $height/4, -width => $width/4);
-#			$tl->resizable(0,0);
-#			$tl->packPropagate(0);	# Keep the size.
-#			$tl->overrideredirect(1) if($override);
-#
-#			my $tlabel = $tl->Label(
-#					-text	=> "ser_reset",
-#					-relief	=> 'ridge',
-#					-font	=> $tfont,
-#			) -> pack(-fill	=> 'x');
-#
-#			my $question = $tl->Label(
-#					-text	=> "Please release all Buttons",
-#					-font	=> $qfont,
-#			)->pack(
-#					-fill	=>'both',
-#					-expand	=>1
-#			);
-#			$tl->bind('<Key>',[\&ser_reset_retry,Ev('A')]);
-#			$crap->destroy;
-			print "Failed\n";scalar(<>); # XXX
-		}
-		print $ok;
-	} while ($ok ne "A\r\n");
+		if ($ok ne "A\r\n"){
+			if ($ok =~ /(\d)\r\n/) {
+				&ser_fatal($players[$1].", bitte Knopf loesen.");
+			}else{
+				&ser_fatal("ser_reset got $ok");
+			};
+		};
+	}while($ok ne "A\r\n");
+	print "...done\n" if ($debug);
+	$reset->grabRelease;
+	$reset->withdraw;
+};
 
-	print Client "A\r\n";
-	$ok=<Client>;
-	if ($ok ne "A\r\n"){
-		print "FATAL: ser_unit not correctly responding\n";
-		die;
-	};
+sub ser_noinp{
+	&ser_fatal("ser_junk");
+	&ser_reset;
+};
+
+
+sub ser_fatal{
+	my $fatal=(shift)."\n";
+
+	$tl->fileevent(\*Client,'readable',[\&ser_eat,\$fatal]);
+
+	my $answer = $tl->Dialog(-title => "ser_reset",
+			-textvar => \$fatal,
+			-buttons => [ "try again" ],
+			);
+	$answer->focusForce;
+	$answer->Show();
+};
+
+# Eat anything you get.
+sub ser_eat {
+	my $ref=shift;
+	my $foo=scalar(<Client>);
+	print "got: ",$foo;
+	chomp($foo);
+	${$ref}.=$foo;
 };
