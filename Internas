@@ -1,0 +1,18 @@
+Hardware von Manuel:
+  19.2 8n1 kein handshaking.
+  Commands: Lineend==\r\n
+  R = Reset
+   A = Ack
+   1-3 = Noch Knopf gedrueckt
+  A = Async / auto-echo (default)
+   A
+ in Async kommen unvermittelt 1-3 fuer 'Knopf n'
+ rest unverwendet:
+  Q = Query
+   1-3 = Player
+   0 = keine Taste
+  S = Sync / muss Query
+   S
+
+
+

@@ -1,3 +1,27 @@
+Procedures:
+
+preis vorher announcen.
+---
+Feature requests: 14.8.01
+
+Start button -> splashscreen (screenfull, force focus, enter)
+Rahmen fuer hjkl sichtbarer.
+Sound?
+Fonts passend fuer Feldbreiten.
+irc online spieler.
+bei frage falsch - spieler fuer die runde sperren
+
+Double Jeopardy-fragen.
+[setzen: 0-frage*2, alleine beantworten]
+
+Finalfrage: erstmal nicht.
+
+Bonuspunkte: eher auch nicht.
+
+Namen am splashscreen eingeben
+
+Loadgame namen passen, loadgame rundenname
+---
 Edit-mode
 ser_junk, knoepfe anders benennen
 
@@ -27,3 +51,7 @@ Should work %)
 fixed.
 - localisation feature added.
 - pixmap feature added.
+
+9.8.01
+- [Bug#2] Button press window got obscured by question popup.
+uses ->afterIdle now.
