@@ -21,6 +21,7 @@ my $debug=0;
 my $override=0;					# Ignore windowmanager?
 my $force=0;					# move focus for kbd-mode?
 my $tty=0;						# use tty/serial input?
+my $splash=0;					# Display a splashscreen?
 my $socket=0;					# tty emulated by tcp socket?
 my $geometry=0;					# How big should I be?
 my $readfile;					# Should I read from a file?
@@ -37,6 +38,9 @@ my %ln = (
 
 sub _ {
 	my $key=shift;
+
+	return $key; # Deutsch-Mode.
+
 	if (defined ($ln{$key})){
 		return $ln{$key};
 	}else{
@@ -45,7 +49,7 @@ sub _ {
 };
 
 my %opt;
-getopts('doftsg:r:hw', \%opt);
+getopts('doftsg:r:hwb', \%opt);
 
 # Possible screen sizes
 my %screen=( 320 => 200,
@@ -67,6 +71,7 @@ beopardy -options Gamefile Player1 Player2 ...
 -f		Force keyboard focus.           (fullscreen)
 -t		Tty input. Use when Buzzers are connected.
 -s		Socket. Emulate Tty input via tcp socket (port 3333)
+-b		Beopardy splashscreen. Default for serial input.
 -r <file>	Read saved game from File.
 -w		Save game progress for reading with -r.
 -g <size>	geometry. Select window size.
@@ -86,6 +91,7 @@ $force=1	if (defined $opt{f});
 $tty=1		if (defined $opt{t});
 $socket=1	if (defined $opt{s});
 $savefile=1	if (defined $opt{w});
+$splash=1	if (defined $opt{b});
 
 if($opt{r}){ # Read savefile
 	if ( -f $opt{r} ){
@@ -94,6 +100,7 @@ if($opt{r}){ # Read savefile
 };
 
 if ($socket){$tty=1};	# socket emulates tty.
+if ($tty){$splash=1};	# tty requires splash.
 
 my $tl = MainWindow -> new -> toplevel;
 $tl->appname(beopardy);
@@ -158,7 +165,7 @@ while (<J>){
 		next;
 	}
 	$_.=" ";
-	if (!s/\\n/\n/){
+	if (!s/\\n/\n/g){
 		s/(.{10,$qwidth})\s+/$1\n/mg;
 	};
 	$jdata{$nam}[++$c]=$_;
@@ -205,8 +212,9 @@ sub read_game{
 	};
 	if ($p){
 		print "Hit enter to continue...\n";
-		$p=<>;
+		$p=<STDIN>;
 	};
+
 	if($savefile){
 		my($ts)=logname();
 		open(SAV,">$gamefile.$ts");
@@ -229,21 +237,20 @@ if ($#ARGV>0){
 	@players=qw(Foo Bar Baz);
 };
 
-print SAV "[ply] ",join("/",@players),"\n";
 
-my @colors=qw(darkgrey darkred darkgreen darkblue cyan);
+my @colors=qw(darkgrey darkred darkgreen darkblue darkcyan yellow);
 
 unshift @players,"Nobody";
-my @points=(0)x($#players+1);
+my @points;
 
 # Here starts the Tk part...
 #my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--40-*-*-*-*-*-iso8859-1');
 my $qfont=$tl->X11Font('-truetype-arial-medium-r-*-*-40-*-*-*-*-*-ascii-*');
 print "Question-Font:\n$qfont\n" if ($debug);
-my $qsfont=$tl->X11Font('-truetype-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
+#my $qsfont=$tl->X11Font('-truetype-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
 
 #my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
-my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-36-*-*-*-*-*-iso8859-1');
+my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-25-*-*-*-*-*-iso8859-1');
 print "Title-Font:\n$tfont\n" if($debug);
 
 $tl->configure(-height => $height, -width => $width);
@@ -267,12 +274,17 @@ my $bframe=$tl->Frame->pack(-fill=>'both',-expand=>1);
 my @button;	# The TkButtons 
 my @pts;	# Who got points from this question?
 my @frame;  # The TkFrames, one per category.
+my @mframe; # A frame per button to avoid stupid resizing.
 for my $cat (0..$#Cat){
-	$frame[$cat]=$bframe->Frame->pack(
+	$frame[$cat]=$bframe->Frame(
+			-width => 1,
+			-height => 1,
+	)->pack(
 			-side	=>'left',
 			-fill	=>'both',
 			-expand	=> 1,
 	);
+	$frame[$cat]->packPropagate(0);
 
 	$button[$cat][0] = $frame[$cat]->Label(
 			-width	=> $catwidth,
@@ -280,7 +292,11 @@ for my $cat (0..$#Cat){
 	)->pack(-fill	=> 'both');
 
 	for my $q (1..$q) {
-		$button[$cat][$q] = $frame[$cat]->Button(
+		$mframe[$cat][$q] = $frame[$cat]->Frame(
+				height => 1
+				)-> pack( -fill => 'both', -expand => 1);
+		$mframe[$cat][$q]->packPropagate(0);
+		$button[$cat][$q] = $mframe[$cat][$q]->Button(
 				-text		=> "${q}00",
 				-command	=> [\&selectQuest,$tl,$cat,$q],
 				-font		=> $tfont,
@@ -289,6 +305,7 @@ for my $cat (0..$#Cat){
 		$button[$cat][$q]->bind('<j>',[\&moveCrsr,$cat  ,$q+1]);
 		$button[$cat][$q]->bind('<k>',[\&moveCrsr,$cat  ,$q-1]);
 		$button[$cat][$q]->bind('<l>',[\&moveCrsr,$cat+1,$q  ]);
+#		$button[$cat][$q]->bind('<e>',[\&edit_pts,$cat  ,$q  ]);
 # Fuer mh, der die VI-Keys nicht mag...
 		$button[$cat][$q]->bind('<Left>' ,[\&moveCrsr,$cat-1,$q  ]);
 		$button[$cat][$q]->bind('<Down>' ,[\&moveCrsr,$cat  ,$q+1]);
@@ -299,12 +316,14 @@ for my $cat (0..$#Cat){
 $button[0][1]->focus;
 #$button[0][1]->focusForce if ($force);
 
-# Scoreboard.
+sub scoreboard(){ # Scoreboard.
 my $sframe=$tl->Frame->pack(-side=>'top',-fill=>'x');
 my @pborder;
 my @pframes;
 my @pnames;
 my @pscores;
+
+@points=(0)x($#players+1);
 for (1..$#players){
 	if ($_ == $#players){
 		$pborder[$_]=$sframe;
@@ -329,6 +348,9 @@ for (1..$#players){
 			-anchor		=>'e',
 	)->pack(-fill=>'x');
 };
+return $sframe;
+print SAV "[ply] ",join("/",@players),"\n";
+};
 
 #print "Board done.\n";
 
@@ -351,24 +373,146 @@ if(defined $readfile){
 	close(RSAV);
 };
 
+my $sframe=scoreboard();
+
 print "\nGame start.\n\n";
 
-if($tty){
+my @elist;
+my $dlgbtn;
+
+my $splash_frame;
+$tl->waitVisibility; # To fix stacking order
+
+if($splash){ # Splash-Screen
 	my $dlg=$tl->Toplevel;
-	$dlg->Button(
+	my $i;
+	my $rframe;
+
+#	$dlg->configure(-height => $height, -width => $width);
+#	$dlg->resizable(0,0);
+#	$dlg->packPropagate(0);	# Keep the size.
+	$dlg->overrideredirect(1);
+	my $q=$dlg->Label(qw/-relief raised -width 80/)->pack;
+
+	$i= $q->Pixmap("beopardy",-file => "img/beopardy.xpm");
+
+	if(defined($i)){
+		$q->Label(-image=>"beopardy")->pack(-side=>"left");
+	};
+
+	$rframe=$q->Frame->pack(-fill=>'both',-expand=>1);
+
+	my $f = $rframe;
+	$splash_frame=$f;
+	my $row=0;
+	foreach (1..$#players) {
+		my $e = $f->Entry(qw/-relief sunken -width 40/);
+		$e->insert(0,$players[$_]);
+		if($tty){
+			$e->bind('<Return>',[\&ser_reset,\&ser_PlyEn]);
+		}else{
+			$e->bind('<Return>',[\&ply_focus,$_+1]);
+		};
+		$e->bind('<FocusOut>',[\&set_ply,$_]);
+
+		my $l = $f->Label(-text => "Player $_", 
+			-width		=> $namewidth,
+			-background	=> $colors[$_],
+			-foreground	=> "white",
+			-anchor 	=> 'e', -justify => 'right');
+		Tk::grid( $l, -row => $row, -column => 0, -sticky => 'e');
+		Tk::grid( $e, -row => $row++, -column => 1,-sticky => 'ew');
+		$f->gridRowconfigure(1,-weight => 1);  
+		$elist[$_]=$e;
+	}
+	$dlgbtn=$q->Button(
 			-text	=> "Start",
 			-font	=> $qfont,
-			-width	=> 30,
-			-height	=> 10,
-			-command	=> sub { $dlg->destroy;&ser_reset;$button[0][1]->focusForce if ($force)},
+#			-width	=> 30,
+			-height	=> 2,
+			-command	=> sub {&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$splash=0;$dlg->destroy;},
 	)->pack(
 			-fill	=>'x',
 			-expand	=>1,
 	);
+
+	if($tty){
+		&ser_PlyEn;
+	}else{
+		&ply_focus(".",1);
+	};
+
+	$dlg->idletasks;
+	$dlg->geometry(sprintf "+%d+%d",($dlg->screenwidth-$dlg->width)/2,($dlg->screenheight-$dlg->height)/2);
+
 	$dlg->raise;
 	$dlg->grab;
 	$dlg->focusForce;
 	$tl->lower($dlg);
+};
+
+sub set_ply {
+	my ($crap,$key)=@_;
+	print "set_ply $key\n" if($debug);
+	$players[$key]=$crap->get;
+};
+
+sub ser_PlyEn {
+	if($tty){
+		$tl->fileevent(\*Client,'readable',[\&ser_SelectPly,@_]);
+		$dlgbtn->focus;
+	}else{
+		die "ser_en: $_[0]\n";
+	};
+};
+
+sub ply_focus {
+	my ($crap, $key)=@_;
+	if ($key>$#players){
+		if($tty && ($key==($#players+1))){
+			my $f=$splash_frame;
+			my $row=$key-1;
+			$players[$key]="New Player $key";
+			my $e = $f->Entry(qw/-relief sunken -width 40/);
+			$e->insert(0,$players[$key]);
+			$e->bind('<Return>',[\&ser_reset,\&ser_PlyEn]);
+			$e->bind('<FocusOut>',[\&set_ply,$key]);
+
+			my $l = $f->Label(-text => "Player $key", 
+					-width		=> $namewidth,
+					-background	=> $colors[$key],
+					-foreground	=> "white",
+					-anchor 	=> 'e', -justify => 'right');
+			Tk::grid( $l, -row => $row, -column => 0, -sticky => 'e');
+			Tk::grid( $e, -row => $row++, -column => 1,-sticky => 'ew');
+			$f->gridRowconfigure(1,-weight => 1);  
+			$elist[$key]=$e;
+			$elist[$key]->focus;
+			$elist[$key]->selectionRange(0,'end');
+			$sframe->destroy;
+			$sframe=scoreboard();
+			$sframe->idletasks;
+			return;
+		};
+		$dlgbtn->focus;
+	}else{
+		$elist[$key]->focus;
+		$elist[$key]->selectionRange(0,'end');
+	};
+};
+
+sub ser_SelectPly {
+	my ($crap)=@_;
+
+	my $key=<Client>;
+	$key=~s/\r?\n$//;
+	$key=$key+0;
+	if($key == 0){
+		&ser_reset;
+	}else{
+		&ply_focus(".",$key);
+		&ser_dis;
+	};
 };
 
 # Make the 'resetting' window...
@@ -378,6 +522,8 @@ $reset->resizable(0,0);
 $reset->geometry("-0+0");
 $reset->withdraw;
 $reset->Label(-text=>"resetting",-background=>"green")->pack;
+
+$tl->after(100,\&ser_reset) if($tty);
 
 MainLoop;
 
@@ -389,6 +535,9 @@ sub selectQuest{
 
 	my $tl = $otl->Toplevel;
 	$tl->configure(-height => $height, -width => $width);
+	if(!$override){ # XXX my windowmanager is broken %)
+		$tl->geometry("+".($otl->rootx-28)."+".($otl->rooty-9));
+	};
 	$tl->resizable(0,0);
 	$tl->packPropagate(0);	# Keep the size.
 	$tl->overrideredirect(1) if($override);
@@ -418,6 +567,7 @@ sub selectQuest{
 		$question = $tl->Label(
 			-text	=> $jdata{$Cat[$c]}[$f],
 			-font	=> $qfont,
+			-justify	=> "left",
 		);
 	};
 
@@ -552,14 +702,14 @@ sub updPlayfield {
 	if($col<0){$col=0};
 	$col=$colors[$col];
 #	print ">$pl<\n";
-#	my $oheight=$button[$c][$f]->height;
+#	my $oheight=$button[$c][$f]->height; print "$c/$f: $oheight\n";
 	$button[$c][$f]->configure(
 			-text				=> $pl,
 			-relief				=> "flat",
 			-foreground			=>'grey',
 			-activeforeground	=>'grey',
-			-height				=> 1,
-			-width				=> 1,
+			-height				=> 0,
+			-width				=> 0,
 			-background			=> $col,
 			-font				=> $qfont,
 	);
@@ -604,6 +754,9 @@ sub ser_reset{
 	$reset->withdraw;
 #	$tl->focusForce if ($force);
 	&$quux;
+	if($splash){
+		&ser_PlyEn;
+	};
 };
 
 sub ser_noinp{
