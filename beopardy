@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.9 2001/12/26 14:35:57 sec Exp sec $;
+	q$Id: beopardy,v 1.10 2002/12/23 15:45:13 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -27,6 +27,8 @@ my $socket=0;					# tty emulated by tcp socket?
 my $geometry=0;					# How big should I be?
 my $readfile;					# Should I read from a file?
 my $savefile=0;					# Should I save to a file?
+
+my $global_question_inhibit=0;
 
 # L10n
 my %ln = (
@@ -528,6 +530,7 @@ sub ser_SelectPly {
 	my ($crap)=@_;
 
 	my $key=<Client>;
+	print "SER<: <$key>\n";
 	$key=~s/\r?\n$//;
 	$key=$key+0;
 	if($key == 0){
@@ -556,9 +559,12 @@ my %imgcache;
 
 sub selectQuest{
 	my ($otl,$c,$f)=@_;
+	print "global_question_inhibit= $global_question_inhibit\n";
+	return if $global_question_inhibit;
 	print "Q$f / \"$Cat[$c]\":\n$jdata{$Cat[$c]}[$f]\n";
 
 	my $tl = $otl->Toplevel;
+	$tl->fileevent(\*Client,'readable',"");
 	$tl->configure(-height => $height, -width => $width);
 	if(!$override){ # XXX my windowmanager is broken %)
 		$tl->geometry("+".($otl->rootx-28)."+".($otl->rooty-9));
@@ -577,15 +583,20 @@ sub selectQuest{
 # XXX Pixmap-Hack. *funfunfun*
 
 	my ($typ,$fnam);
-	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)\]/){
+	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)\]\s*/){
 		$typ=$1;$fnam=$2;
 		print "This is of $typ - \'$2\'\n";
 		if($typ eq "img"){
 			if(!defined($imgcache{$fnam})){
-				$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+				if(-f "img/".$fnam.".xpm"){
+					$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+				};
 			};
 		};
 	}
+	if ($typ ne "snd"){
+		&snd_play("think",1);
+	};
 
 	$snd_save=undef;
 	my $question;
@@ -593,17 +604,20 @@ sub selectQuest{
 		$question = $tl->Label(
 			-image	=> "$fnam",
 		);
-	}elsif(defined($fnam)&&($typ eq "snd")){
-		$question = $tl->Label(
-			-text	=> "listen...",
-			-font	=> $qfont,
-			-justify	=> "left",
-		);
-		&snd_play($fnam);
-		$snd_save=$fnam;
 	}else{
+		my $txt=$jdata{$Cat[$c]}[$f];
+		if(defined($fnam)&&($typ eq "snd")){
+			if(!$soundd){$txt.="\n[ERR:Nosound]"};
+			&snd_play($fnam);
+			$snd_save=$fnam;
+		};
+		if($txt=~s/^\[(\w+):.*?\]\s*//){
+			if(!$txt){
+				$txt="Err. This should be of type $1";
+			};
+		};
 		$question = $tl->Label(
-			-text	=> $jdata{$Cat[$c]}[$f],
+			-text	=> $txt,
 			-font	=> $qfont,
 			-justify	=> "left",
 		);
@@ -617,6 +631,8 @@ sub selectQuest{
 	$tl->focusForce if ($force);
 
 	$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
+
+
 	$tl->afterIdle(sub {&ser_en($tl,$c,$f) if ($tty);}); # fix Bug#2
 };
 
@@ -626,8 +642,9 @@ sub ser_answerQuest {
 	my ($crap,$c,$f)=@_;
 
 	my $key=<Client>;
+	print "SER<: <$key>\n";
 
-	&snd_play("think",1);
+#	&snd_play("think",1);
 
 	$key=~s/\r?\n$//;
 
@@ -652,6 +669,7 @@ sub ser_answerQuest {
 	my $br=$bframe->Button(
 			-text		=> _('Richtig'),
 			-command	=> sub{
+							&snd_stop;
 							&answerQuest($crap,$c,$f,$key)
 							},
 	)->pack(-side	=>'left');
@@ -660,7 +678,7 @@ sub ser_answerQuest {
 			-command	=> sub{
 							$ich->destroy;
 							&answerQuest($crap,$c,$f,-$key);
-							&snd_resume;
+#							&snd_resume;
 							$crap->focusForce if ($force);
 							&ser_en($crap,$c,$f)},
 	)->pack(-side	=>'left');
@@ -668,8 +686,8 @@ sub ser_answerQuest {
 			-text		=> _('Oops'),
 			-command	=> sub{$ich->destroy;
 							  &ser_reset;
-							  &snd_stop;
-							  &snd_resume;
+#							  &snd_stop;
+#							  &snd_resume;
 							  $crap->focusForce if ($force);
 							  &ser_en($crap,$c,$f)},
 	)->pack;
@@ -738,13 +756,14 @@ sub answerQuest{
 	my ($crap,$c,$f,$key)=@_;
 	print "answered: $c $f $key\n";
 	my $sgn=1;
-	if($key eq "q"){
+	if(lc($key) =~ "q"){
 		&snd_stop(0);
 		$crap->destroy;
 		&ser_dis if ($tty);  # "input nach 'q' auf frage" fix.
 		$button[$c][$f]->focusForce if ($force);
 		return;
 	};
+	&snd_stop() if ($key eq "0"); # XXX
 	my $pos;
 	$key=-$pos if (($pos=index('0!"#$%&/()',$key))>0);
 	$key=-3  if($key eq '§');
@@ -763,7 +782,7 @@ sub answerQuest{
 			$crap->destroy if ($sgn>0);
 			&ser_reset if ($tty);
 			$button[$c][$f]->focusForce if ($force && ($sgn>0));
-			&snd_stop(0);
+#			&snd_stop(0);
 			return;
 		};
 	};
@@ -820,7 +839,9 @@ sub ser_reset{
 	do {
 		&ser_dis;
 		print Client "R\r\n";
+	print "SER>: R\n";
 		$ok=<Client>;
+	print "SER<: <$ok>\n";
 		$ok=~s/\r?\n//;
 		if ($ok ne "A"){
 			if ($ok =~ /(\d)/) {
@@ -854,6 +875,7 @@ sub ser_fatal{
 #	print "froobel: ",$quux,"\n";
 
 	$tl->fileevent(\*Client,'readable',[\&ser_eat,\$fatal]);
+	print "ser_fatal: $fatal\n";
 
 	my $answer = $tl->Dialog(-title => "ser_junk",
 			-textvar => \$fatal,
@@ -861,7 +883,9 @@ sub ser_fatal{
 			);
 	$answer->overrideredirect(1);
 	$answer->focusForce;
+	$global_question_inhibit=1;
 	$answer->Show();
+	$global_question_inhibit=0;
 	&$quux;
 };
 
@@ -869,6 +893,7 @@ sub ser_fatal{
 sub ser_eat {
 	my $ref=shift;
 	my $foo=scalar(<Client>);
+	print "SER<: <$foo>\n";
 	print "got: ",$foo;
 	$foo=~s/\r?\n//;
 	if($foo =~ /^\d+$/){
@@ -888,9 +913,9 @@ sub snd_color {
 	my $foo=scalar(<Soundd>);
 	print "Cgot: ",$foo;
 	if($foo=~/^E/){
-		$cur_ser_answer[0]->configure(
-			-background			=> "red",
-				);
+#		$cur_ser_answer[0]->configure(
+#			-background			=> "red",
+#				);
 	};
 
 };
