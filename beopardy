@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.8 2001/08/10 13:53:59 sec Exp sec $;
+	q$Id: beopardy,v 1.9 2001/12/26 14:35:57 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -34,6 +34,7 @@ my %ln = (
 		"Oops"				=> "oops",
 		"ist etwas unruhig"	=> "seems a bit nervous",
 		"Knopf loesen"		=> "release your button",
+		"nochmal"			=> "try again",
 		);
 
 sub _ {
@@ -165,9 +166,10 @@ while (<J>){
 		next;
 	}
 	$_.=" ";
-	if (!s/\\n/\n/g){
+	if (!s/(?<!\\)\\n/\n/g){
 		s/(.{10,$qwidth})\s+/$1\n/mg;
 	};
+	s/\\\\/\\/mg;
 	$jdata{$nam}[++$c]=$_;
 };
 close(J);
@@ -316,6 +318,7 @@ for my $cat (0..$#Cat){
 $button[0][1]->focus;
 #$button[0][1]->focusForce if ($force);
 
+@points=(0)x(4);
 sub scoreboard(){ # Scoreboard.
 my $sframe=$tl->Frame->pack(-side=>'top',-fill=>'x');
 my @pborder;
@@ -323,7 +326,6 @@ my @pframes;
 my @pnames;
 my @pscores;
 
-@points=(0)x($#players+1);
 for (1..$#players){
 	if ($_ == $#players){
 		$pborder[$_]=$sframe;
@@ -348,8 +350,8 @@ for (1..$#players){
 			-anchor		=>'e',
 	)->pack(-fill=>'x');
 };
-return $sframe;
 print SAV "[ply] ",join("/",@players),"\n";
+return $sframe;
 };
 
 #print "Board done.\n";
@@ -362,7 +364,7 @@ if(defined $readfile){
 		if (/^\[ply\]/){
 			(undef,$ply)=split;
 			@players=split(/\//,$ply);
-			unshift @players,"Nobody";
+#			unshift @players,"Nobody";
 			next;
 		};
 		next if(! /^\[sav\]/);
@@ -383,6 +385,7 @@ my $dlgbtn;
 my $splash_frame;
 $tl->waitVisibility; # To fix stacking order
 
+
 if($splash){ # Splash-Screen
 	my $dlg=$tl->Toplevel;
 	my $i;
@@ -397,7 +400,7 @@ if($splash){ # Splash-Screen
 	$i= $q->Pixmap("beopardy",-file => "img/beopardy.xpm");
 
 	if(defined($i)){
-		$q->Label(-image=>"beopardy")->pack(-side=>"left");
+		$q->Label(-image=>"beopardy")->pack(-side=>"top");
 	};
 
 	$rframe=$q->Frame->pack(-fill=>'both',-expand=>1);
@@ -430,7 +433,9 @@ if($splash){ # Splash-Screen
 			-font	=> $qfont,
 #			-width	=> 30,
 			-height	=> 2,
-			-command	=> sub {&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$splash=0;$dlg->destroy;},
+			-command	=> sub {$splash=0;&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$dlg->destroy;
+			print SAV "[ply] ",join("/",@players),"\n";
+			},
 	)->pack(
 			-fill	=>'x',
 			-expand	=>1,
@@ -529,6 +534,8 @@ MainLoop;
 
 # We selected a question...
 
+my %imgcache;
+
 sub selectQuest{
 	my ($otl,$c,$f)=@_;
 	print "Q$f / \"$Cat[$c]\":\n$jdata{$Cat[$c]}[$f]\n";
@@ -552,14 +559,16 @@ sub selectQuest{
 # XXX Pixmap-Hack. *funfunfun*
 
 	my ($i,$fnam);
-	if ($jdata{$Cat[$c]}[$f] =~ s/^\[(img):(.*?)\]//){
+	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img):(.*?)\]/){
 		$fnam=$2;
 		print "This is a $1 - $2\n";
-		$i= $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+		if(!defined($imgcache{$fnam})){
+			$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+		};
 	}
 
 	my $question;
-	if (defined $i){
+	if (defined($fnam) && defined($imgcache{$fnam})){
 		$question = $tl->Label(
 			-image	=> "$fnam",
 		);
@@ -776,7 +785,7 @@ sub ser_fatal{
 
 	my $answer = $tl->Dialog(-title => "ser_junk",
 			-textvar => \$fatal,
-			-buttons => [ "try again" ],
+			-buttons => [ _("nochmal") ],
 			);
 	$answer->overrideredirect(1);
 	$answer->focusForce;
