@@ -1,0 +1,247 @@
+#!/usr/bin/perl -w
+
+# vim:set ts=4 sw=4 cin sm:
+
+# This code is under the BSD Licence
+# (c) by Stefan `Sec` Zehl <sec@42.org>
+# $Id$
+
+# based on snippets of romanclock by Abigail
+
+use strict;
+use Tk;
+use Tk::Font;
+use Tk::X11Font;
+
+my $debug=1;
+my $override=0;					# Ignore windowmanager?
+my $force=1;					# move focus for kbd-mode?
+
+my ($width,$height)=(640,480);	# Size of game field.
+my $catwidth =10;				# Width of categories.
+my $namewidth=10;				# Width of player names
+
+print "Reading questions....\n";
+my %jdata;
+open (J,"<Test.jd") || die;
+my ($nam,$c);
+while (<J>){
+	chomp;
+	next if ((!defined $nam) && (!/^>/));
+	next if /^\s*(#|$)/;
+	if (/^>(.*)/){
+		if(defined $nam){
+			printf "%-20s:%2d\n",$nam,$c if ($debug);
+		};
+		$nam=$1;
+		$c=0;
+		next;
+	}
+	$jdata{$nam}[++$c]=$_;
+};
+close(J);
+printf "%-20s:%2d\n",$nam,$c if ($debug);
+print "Totalling ",(scalar keys %jdata)," categories.\n";
+
+my @players=qw(Foo Bar Baz);
+my @points=(0,0,0);
+
+unshift @players,"Nobody";
+unshift @points,0;
+
+my @Cat;
+my $gamefile=shift||"Test.jg";
+$gamefile =~ /^([^.]+)(.jg)?/;
+my $title=$1;		# Titel des Spielfelds.
+my $q=5;			# Wieviele Fragen/Kategorie?
+
+print "\nReading game '$title' ...\n";
+open(G,"<$gamefile") || die;
+while (<G>){
+	chomp;
+	next if (/^\s*(#|$)/);
+	push @Cat,$_;
+};
+close(G);
+
+for (@Cat){
+	printf "%-20s:%2d\n",$_,$#{$jdata{$_}};
+	if ($#{$jdata{$_}} < $q){
+		print "ERROR: not enough questions in \"$_\"\n";
+	};
+	if ($#{$jdata{$_}} > $q){
+		print "WARN : too many questions in \"$_\"\n";
+	};
+};
+print "\n";
+
+
+# Here starts the Tk part...
+my $tl = MainWindow -> new -> toplevel;
+
+my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--25-*-*-*-*-*-iso8859-1');
+print "Question-Font:\n$qfont\n";
+
+my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--20-*-*-*-*-*-iso8859-1');
+print "Title-Font:\n$tfont\n";
+
+$tl->configure(-height => $height, -width => $width);
+$tl->resizable(0,0);
+$tl->packPropagate(0);	# Keep the size.
+$tl->overrideredirect(1) if ($override);
+
+# Title of Gamefield
+my $tlabel = $tl -> Label (
+		-text	=> $title,
+		-relief => 'ridge',
+		-font	=> $tfont,
+) -> pack(-fill	=> 'x');
+
+$tl->eventAdd('<<quit>>'=>'<Button-3>');
+$tl->eventAdd('<<quit>>'=>'<q>');
+$tl->bind('<<quit>>',sub{print "Done:\n",map {sprintf "%10s:%5d\n",$players[$_],$points[$_]} sort {$points[$b]<=>$points[$a]} (1..$#points);exit});
+
+sub selectQuest;
+sub answerQuest;
+sub moveCrsr;
+
+# Game-Buttons.
+my $bframe=$tl->Frame->pack(-fill=>'both',-expand=>1);
+my @button;	# The TkButtons 
+my @pts;	# Who got the points from this question?
+my @frame;  # The TkFrames, one per category.
+for my $cat (0..$#Cat){
+	$frame[$cat]=$bframe->Frame->pack(
+			-side	=>'left',
+			-fill	=>'both',
+			-expand	=> 1,
+	);
+
+	$button[$cat][0] = $frame[$cat]->Label(
+			-width => $catwidth,
+			-text => $Cat[$cat],
+	)->pack(-fill => 'both');
+
+	for my $q (1..$q) {
+		$button[$cat][$q] = $frame[$cat]->Button(
+				-text		=> "${q}00",
+				-command	=> [\&selectQuest,$cat,$q],
+		)->pack( -fill => 'both', -expand => 1);
+		$button[$cat][$q]->bind('<h>',[\&moveCrsr,$cat-1,$q  ]);
+		$button[$cat][$q]->bind('<j>',[\&moveCrsr,$cat  ,$q+1]);
+		$button[$cat][$q]->bind('<k>',[\&moveCrsr,$cat  ,$q-1]);
+		$button[$cat][$q]->bind('<l>',[\&moveCrsr,$cat+1,$q  ]);
+	};
+};
+$button[0][1]->focusForce if ($force);
+
+# Scoreboard.
+my $sframe=$tl->Frame->pack(-side=>'top',-fill=>'x');
+my @pborder;
+my @pframes;
+my @pnames;
+my @pscores;
+for (1..$#players){
+	if ($_ == $#players){
+		$pborder[$_]=$sframe;
+	}else{
+		$pborder[$_]=$sframe->Frame->pack(
+				-side	=>'left',
+				-fill	=>'x',
+				-expand	=>1,
+		);
+	};
+
+	$pframes[$_]=$pborder[$_]->Label( -relief=>'ridge')->pack( -side=>'left');
+	$pnames[$_] =$pframes[$_]->Label(
+			-width		=>$namewidth,
+			-anchor		=>'w',
+			-textvar	=> \$players[$_],
+	)->pack;
+	$pscores[$_]=$pframes[$_]->Label(
+			-textvar	=> \$points[$_],
+			-anchor		=>'e',
+	)->pack(-fill=>'x');
+};
+
+print "\nGame start.\n\n";
+MainLoop;
+
+# We selected a question...
+
+sub selectQuest{
+	my ($c,$f)=@_;
+#	print "selected ",join(",",@_),"\n" if ($debug);
+	print "Q$f / \"$Cat[$c]\": $jdata{$Cat[$c]}[$f]\n";
+
+	my $tl = MainWindow->new->toplevel;
+
+	$tl->configure(-height => $height, -width => $width);
+	$tl->resizable(0,0);
+	$tl->packPropagate(0);	# Keep the size.
+	$tl->overrideredirect(1) if($override);
+
+		my $tlabel = $tl->Label(
+				-text	=> $Cat[$c],
+				-relief	=> 'ridge',
+				-font	=> $tfont,
+		) -> pack(-fill	=> 'x');
+
+		my $text;
+		($text=$jdata{$Cat[$c]}[$f])=~ s/\\n/\n/g;
+		my $question = $tl->Label(
+				-text	=> $text,
+				-font	=> $qfont,
+		)->pack(
+				-fill	=>'both',
+				-expand	=>1
+		);
+
+		$tl->focusForce if ($force);
+
+		$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
+};
+
+# User answered the Question.
+sub answerQuest{
+	my ($crap,$c,$f,$key)=@_;
+#	print "answered: $c $f $key\n";
+	if($key eq "q"){
+		$crap->destroy;
+		$button[$c][$f]->focusForce if ($force);
+		return;
+	};
+	$key="0" if($key eq "`"); # Be nice on ami-kbd
+	if($key=~/^\d$/){
+		if (($key <= $#players)&&($key>=0)){
+				print "good for ",$players[$key],"\n";
+				$points[$key]+=$f*100;
+				if(defined $pts[$c][$f]){
+					$points[$pts[$c][$f]]-=$f*100;
+					print "EDIT: $players[$pts[$c][$f]] lost answer\n";
+				};
+				$crap->destroy;
+				$button[$c][$f]->configure(
+						-text				=> $players[$key],
+						-relief				=> "flat",
+						-foreground			=>'grey',
+						-activeforeground	=>'grey',
+				);
+				$pts[$c][$f]=$key;
+				$button[$c][$f]->focusForce if ($force);
+				return;
+		};
+	};
+	print "I don't like this key ($key)...\n" if($debug);
+};
+
+sub moveCrsr{
+	my ($widget,$c,$f)=@_;
+	$c=0 if($c>$#Cat);
+	$c=$#Cat if($c<0);
+	$f=1 if($f>$q);
+	$f=$q if($f<1);
+	$button[$c][$f]->focus;
+	return;
+};
+
