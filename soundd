@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: wheels2.perl,v 1.5 2001/05/07 12:23:04 rcaputo Exp $
+# $Id: soundd,v 1.1 2002/12/23 15:43:25 sec Exp sec $
 
 use strict;
 use POSIX;
@@ -11,7 +11,8 @@ use POE qw(Wheel::SocketFactory Wheel::ReadWrite Driver::SysRW Filter::Stream Wh
 my $port = 32001;
 
 my %trans = (
-		"think" => "snd/thinktheme-new.wav",
+		"think" => "snd/thinktheme-new-short.wav",
+		"start" => "snd/TV Theme - Game Shows - Jeopardy!.mp3",
 		"f1" => "/home/sec/mp3/kinderlieder - wicki.mp3",
 		"f2" => "/home/sec/mp3/Alice im Wunderland 1981.mp3",
 		);

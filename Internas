@@ -15,4 +15,18 @@ Hardware von Manuel:
    S
 
 
+Soundd:
+ localhost:32001
+
+Commands: Lineend=\r\n oder \n
+	P /pfad/zum/file
+	P shortname
+Spielt file ab, killt u.u. laufenden sound.
+Schickt "End of music" am Schluss.
+	S
+Stoppt sound.
+	Z
+Stoppt sound, und geht davon aus, das es geklappt hat.
+	D
+Stoppt sound, und schliesst die verbindung
 

@@ -6,3 +6,12 @@ q ist 'Frage zurueckstellen'
 Ausgegraute Fragen koennen nochmal gewaehlt werden, um sie einem anderen
 Kandidaten gutzuschreiben.
 
+Z im hauptmenue, um den soundd zu resetten.
+
+
+Zum Betrieb: 
+esd starten
+soundd starten
+Seriell connecten
+Seriell 19200 -crtscts
+beopardy starten
