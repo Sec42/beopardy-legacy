@@ -1,0 +1,56 @@
+# Jeopardy Arbeitsgrundlage
+#
+# vim:set ts=30 ai:
+#
+
+9 Kandidaten (3x3 Vorrunde + 1x3 Finale)
+24 Kategorien (4 runden x 6, 5 Fragen/Kat = 120 Fragen.)
+
+Brauchen:
+3 Knoepfe, Entscheider, Anzeige(Programm), Anzeigegeraet.
+
+Manuel macht hardware
+  rotfl meint er hat evtl. noch irgendwo koepfe, demaechst nachfragen.
+  19.2 8n1 kein handshaking.
+  Commands: Receive \r\n
+  R = Reset
+   A = Ack
+   1-3 = Noch Knopf gedrueckt
+  Q = Query
+   1-3 = Player
+   0 = keine Taste
+  S = Sync / muss Query
+   S
+  A = Async / auto-echo (default)
+   A
+
+Fabian kuemmert sich um Preise
+  irgendwas kleines fuer jeden zum mitnachhausenehmen (schraubenzieher/zange?)
+  2+3 platz tshirts?
+  1. platz gutschein lehmanns? bemalte tasse+tshirt?
+Sec hackt ein tk-gui, das man an die wand beamern kann.
+
+Wie lange dauert eine Runde? (Zeitbedarf abschaetzen)
+ 20 min ca.
+
+klaeren ob Grafiken gehen
+klaeren ob Musik geht
+ray macht umformulierung jeopardy-style, oder wir lassen das doch sein %)
+
+Wer kuemmert sich darum das es dort einen beamer gibt?
+
+Machen wir einen Vorauswhl-zettel?
+
+Gibts bei jeopardy nicht ab uns zu versteckte extras unter den feldern?
+- Ja es gibt "Solo Jeopardy" auf TM3, da darf der Kandidat eine beliebige
+  Summe seines Geldes setzen bevor der die Frage gehoert hat und nur er darf
+  dann antworten. Auf der Defcon gab es "Daily Doubles", das waren Fragen
+  hinter denen sich die doppelte Punktzahl verborg, eher langweilig.
+
+Brauchen wir ein paar generische Notfall-fragen?
+
+mit ? markiertes ist noch zu bearbeiten. Entweder imho zu schwer, oder
+Erklaerung unsicher/unklar.
+
+Ab hier Fragen:
+-------------------------------------------------------------------------------
