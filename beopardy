@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.13 2004/12/25 13:11:47 sec Exp sec $;
+	q$Id: beopardy,v 1.14 2004/12/25 16:03:29 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -296,6 +296,7 @@ my $tlabel = $tl -> Label (
 $tl->eventAdd('<<quit>>'=>'<Button-3>');
 $tl->eventAdd('<<quit>>'=>'<Q>');
 $tl->bind('<<quit>>',sub{&snd_stop();print "Done:\n",map {sprintf "%10s:%5d\n",$players[$_],$points[$_]} sort {$points[$b]<=>$points[$a]} (1..$#points);exit});
+#$tl->bind('<Button-2>',sub{$tl->focus;$tl->focusForce;$buttons[1][1]->focus};);
 $tl->bind('<Z>',sub{&snd_zap()});
 
 # Game-Buttons.
@@ -330,13 +331,19 @@ for my $cat (0..$#Cat){
 				-text		=> "${q}00",
 				-command	=> [\&selectQuest,$tl,$cat,$q],
 				-font		=> $tfont,
+				-highlightcolor => "red",
 		)->pack( -fill => 'both', -expand => 1);
 		$button[$cat][$q]->bind('<h>',[\&moveCrsr,$cat-1,$q  ]);
 		$button[$cat][$q]->bind('<j>',[\&moveCrsr,$cat  ,$q+1]);
 		$button[$cat][$q]->bind('<k>',[\&moveCrsr,$cat  ,$q-1]);
 		$button[$cat][$q]->bind('<l>',[\&moveCrsr,$cat+1,$q  ]);
-		$button[$cat][$q]->bind('<e>',[\&edit_pts,$cat  ,$q  ]);
-		$button[$cat][$q]->bind('<f>',[\&finish]);
+		$button[$cat][$q]->bind('<E>',[\&edit_pts,$cat  ,$q  ]);
+		$button[$cat][$q]->bind('<F>',[\&finish]);
+		$button[$cat][$q]->bind('<r>',[\&randomply]);
+#		$button[$cat][$q]->bind('<FocusIn>',sub{
+#				$button[$cat][$q]->configure(-border=>10)});
+#		$button[$cat][$q]->bind('<FocusOut>',sub{
+#				$button[$cat][$q]->configure(-border=>2)});
 # Fuer mh, der die VI-Keys nicht mag...
 		$button[$cat][$q]->bind('<Left>' ,[\&moveCrsr,$cat-1,$q  ]);
 		$button[$cat][$q]->bind('<Down>' ,[\&moveCrsr,$cat  ,$q+1]);
@@ -1235,4 +1242,33 @@ sub finish{
 	$dlg->grab;
 	$dlg->focusForce;
 	$tl->lower($dlg);
+};
+
+sub randomply{
+	my ($wid)=@_;
+	my $dlg=$wid->Toplevel;
+	$dlg->overrideredirect(1);
+
+	my $ply=int(rand($#players-1))+1;
+	$global_dbl_ply=$ply;
+
+	my $q=$dlg->Button(
+			-relief		=> "raised",
+			-border		=> 5,
+			-background	=> $colors[$ply],
+			-foreground	=> "white",
+			-font       => $qfont,
+			-text		=> $players[$ply],
+			-command	=> sub {$wid->focusForce if ($force);$dlg->destroy},
+			)->pack();
+
+# Repositioning looks stupid.
+#	$dlg->idletasks;
+#	$dlg->geometry(sprintf "+%d+%d",($dlg->screenwidth-$dlg->width)/2,($dlg->screenheight-$dlg->height)/2);
+	$dlg->geometry(sprintf "+%d+%d",($dlg->screenwidth-100)/2,($dlg->screenheight-40)/2);
+
+	$dlg->raise;
+	$dlg->grab if ($force);
+	$dlg->focusForce if($force);
+	$q->focus;
 };
