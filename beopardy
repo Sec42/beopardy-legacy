@@ -22,6 +22,7 @@ my $override=0;					# Ignore windowmanager?
 my $force=0;					# move focus for kbd-mode?
 my $tty=0;						# use tty/serial input?
 my $splash=0;					# Display a splashscreen?
+my $soundd=0;					# Use Soundd-output?
 my $socket=0;					# tty emulated by tcp socket?
 my $geometry=0;					# How big should I be?
 my $readfile;					# Should I read from a file?
@@ -50,7 +51,7 @@ sub _ {
 };
 
 my %opt;
-getopts('doftsg:r:hwb', \%opt);
+getopts('ydoftsg:r:hwb', \%opt);
 
 # Possible screen sizes
 my %screen=( 320 => 200,
@@ -75,6 +76,7 @@ beopardy -options Gamefile Player1 Player2 ...
 -b		Beopardy splashscreen. Default for serial input.
 -r <file>	Read saved game from File.
 -w		Save game progress for reading with -r.
+-y		Contact soundd at localhost 32001
 -g <size>	geometry. Select window size.
 		0: fullscreen (default)
 EOF
@@ -93,6 +95,7 @@ $tty=1		if (defined $opt{t});
 $socket=1	if (defined $opt{s});
 $savefile=1	if (defined $opt{w});
 $splash=1	if (defined $opt{b});
+$soundd=1	if (defined $opt{y});
 
 if($opt{r}){ # Read savefile
 	if ( -f $opt{r} ){
@@ -148,6 +151,20 @@ if ($tty){
 	print "done.\n";
 	autoflush Client;
 };
+
+my $snd_save; # resume sound..
+if($soundd){
+		my $port = 32001;
+		my $proto = getprotobyname('tcp');
+		socket(Soundd, PF_INET, SOCK_STREAM, $proto)	|| die "socket: $!";
+
+		my $iaddr   = inet_aton("localhost");
+		my $paddr   = sockaddr_in($port, $iaddr);
+		$proto   = getprotobyname('tcp');
+		connect(Soundd, $paddr)							|| die "connect: $!";
+		autoflush Soundd
+};
+&snd_stop(0); # Just to make sure, and to install snd_eat.
 
 print "Reading questions....\n";
 my %jdata;
@@ -247,9 +264,9 @@ my @points;
 
 # Here starts the Tk part...
 #my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--40-*-*-*-*-*-iso8859-1');
-my $qfont=$tl->X11Font('-truetype-arial-medium-r-*-*-40-*-*-*-*-*-ascii-*');
+my $qfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-40-*-*-*-*-*-ascii-*');
 print "Question-Font:\n$qfont\n" if ($debug);
-#my $qsfont=$tl->X11Font('-truetype-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
+#my $qsfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
 
 #my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
 my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-25-*-*-*-*-*-iso8859-1');
@@ -269,7 +286,8 @@ my $tlabel = $tl -> Label (
 
 $tl->eventAdd('<<quit>>'=>'<Button-3>');
 $tl->eventAdd('<<quit>>'=>'<Q>');
-$tl->bind('<<quit>>',sub{print "Done:\n",map {sprintf "%10s:%5d\n",$players[$_],$points[$_]} sort {$points[$b]<=>$points[$a]} (1..$#points);exit});
+$tl->bind('<<quit>>',sub{&snd_stop();print "Done:\n",map {sprintf "%10s:%5d\n",$players[$_],$points[$_]} sort {$points[$b]<=>$points[$a]} (1..$#points);exit});
+$tl->bind('<Z>',sub{&snd_zap()});
 
 # Game-Buttons.
 my $bframe=$tl->Frame->pack(-fill=>'both',-expand=>1);
@@ -558,20 +576,31 @@ sub selectQuest{
 
 # XXX Pixmap-Hack. *funfunfun*
 
-	my ($i,$fnam);
-	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img):(.*?)\]/){
-		$fnam=$2;
-		print "This is a $1 - $2\n";
-		if(!defined($imgcache{$fnam})){
-			$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+	my ($typ,$fnam);
+	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)\]/){
+		$typ=$1;$fnam=$2;
+		print "This is of $typ - \'$2\'\n";
+		if($typ eq "img"){
+			if(!defined($imgcache{$fnam})){
+				$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+			};
 		};
 	}
 
+	$snd_save=undef;
 	my $question;
 	if (defined($fnam) && defined($imgcache{$fnam})){
 		$question = $tl->Label(
 			-image	=> "$fnam",
 		);
+	}elsif(defined($fnam)&&($typ eq "snd")){
+		$question = $tl->Label(
+			-text	=> "listen...",
+			-font	=> $qfont,
+			-justify	=> "left",
+		);
+		&snd_play($fnam);
+		$snd_save=$fnam;
 	}else{
 		$question = $tl->Label(
 			-text	=> $jdata{$Cat[$c]}[$f],
@@ -591,10 +620,15 @@ sub selectQuest{
 	$tl->afterIdle(sub {&ser_en($tl,$c,$f) if ($tty);}); # fix Bug#2
 };
 
+my @cur_ser_answer=undef;
+
 sub ser_answerQuest {
 	my ($crap,$c,$f)=@_;
 
 	my $key=<Client>;
+
+	&snd_play("think",1);
+
 	$key=~s/\r?\n$//;
 
 	my $ich=$crap->Toplevel;
@@ -603,25 +637,30 @@ sub ser_answerQuest {
 	$ich->resizable(0,0);
 	$ich->geometry("-0-0");
 
+
 	my $ftl = $ich->Frame( -relief => 'ridge', -bd => 4)->pack;
-	$ftl->Label(
+	$cur_ser_answer[0]=$ftl->Label(
 			-text	=> $players[$key],
 			-font	=> $qfont,
 	)->pack(
 			-fill	=>'x',
 			-expand	=> 1,
 	);
+	
 	my $bframe=$ftl->Frame->pack(-fill=>'both',-expand=>1);
 
 	my $br=$bframe->Button(
 			-text		=> _('Richtig'),
-			-command	=> [\&answerQuest,$crap,$c,$f,$key],
+			-command	=> sub{
+							&answerQuest($crap,$c,$f,$key)
+							},
 	)->pack(-side	=>'left');
 	my $bf=$bframe->Button(
 			-text		=> _('Falsch'),
 			-command	=> sub{
 							$ich->destroy;
 							&answerQuest($crap,$c,$f,-$key);
+							&snd_resume;
 							$crap->focusForce if ($force);
 							&ser_en($crap,$c,$f)},
 	)->pack(-side	=>'left');
@@ -629,6 +668,8 @@ sub ser_answerQuest {
 			-text		=> _('Oops'),
 			-command	=> sub{$ich->destroy;
 							  &ser_reset;
+							  &snd_stop;
+							  &snd_resume;
 							  $crap->focusForce if ($force);
 							  &ser_en($crap,$c,$f)},
 	)->pack;
@@ -663,12 +704,42 @@ sub ser_dis{
 	$tl->fileevent(\*Client,'readable',[\&ser_noinp]);
 };
 
+sub snd_play{
+	return if (!$soundd);
+	my($sound,$what)=(shift,shift);
+	print Soundd "P $sound\r\n";
+	if($what){
+		$tl->fileevent(\*Soundd,'readable',[\&snd_color]); # DWIM!
+	}else{
+		$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
+	};
+};
+sub snd_stop{
+	return if (!$soundd);
+	print Soundd "Stop\r\n";
+	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
+};
+sub snd_zap{
+	return if (!$soundd);
+	print Soundd "Z\r\n";
+	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
+};
+
+sub snd_resume{
+	return if (!$soundd);
+	if($snd_save){
+		print Soundd "P $snd_save\r\n";
+	};
+	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
+};
+
 # User answered the Question.
 sub answerQuest{
 	my ($crap,$c,$f,$key)=@_;
 	print "answered: $c $f $key\n";
 	my $sgn=1;
 	if($key eq "q"){
+		&snd_stop(0);
 		$crap->destroy;
 		&ser_dis if ($tty);  # "input nach 'q' auf frage" fix.
 		$button[$c][$f]->focusForce if ($force);
@@ -692,6 +763,7 @@ sub answerQuest{
 			$crap->destroy if ($sgn>0);
 			&ser_reset if ($tty);
 			$button[$c][$f]->focusForce if ($force && ($sgn>0));
+			&snd_stop(0);
 			return;
 		};
 	};
@@ -805,4 +877,20 @@ sub ser_eat {
 		$foo="Unexpected serial input:\n$foo\n";
 	};
 	${$ref}.=$foo;
+};
+
+#Silently eat anyting...
+sub snd_eat {
+	my $foo=scalar(<Soundd>);
+	print "got: ",$foo;
+};
+sub snd_color {
+	my $foo=scalar(<Soundd>);
+	print "Cgot: ",$foo;
+	if($foo=~/^E/){
+		$cur_ser_answer[0]->configure(
+			-background			=> "red",
+				);
+	};
+
 };

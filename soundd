@@ -1,0 +1,217 @@
+#!/usr/bin/perl -w
+# $Id: wheels2.perl,v 1.5 2001/05/07 12:23:04 rcaputo Exp $
+
+use strict;
+use POSIX;
+
+$|=1;
+
+use POE qw(Wheel::SocketFactory Wheel::ReadWrite Driver::SysRW Filter::Stream Wheel::Run);
+
+my $port = 32001;
+
+my %trans = (
+		"think" => "snd/thinktheme-new.wav",
+		"f1" => "/home/sec/mp3/kinderlieder - wicki.mp3",
+		"f2" => "/home/sec/mp3/Alice im Wunderland 1981.mp3",
+		);
+
+#------------------------------------------------------------------------------
+# Create a SocketFactory, then sit back until something occurs.
+
+sub session_start {
+  my ($kernel, $heap, $connected_socket) = @_[KERNEL, HEAP, ARG0];
+
+
+  $heap->{connector} = POE::Wheel::SocketFactory->new
+    ( BindAddress => '127.0.0.1',
+      BindPort    => $port,
+      SuccessEvent  => 'connect_success',
+      FailureEvent  => 'connect_failure',
+	  Reuse			=>	'yes',
+    );
+
+  print "Now listening...\n";
+}
+
+#------------------------------------------------------------------------------
+# We got a connection, be happy and live ever after...
+
+sub session_connect_success {
+  my ($heap, $kernel, $connected_socket) = @_[HEAP, KERNEL, ARG0];
+
+#delete $heap->{connector}; # No new connections(?)
+
+  $heap->{socket_wheel} = POE::Wheel::ReadWrite->new
+    ( Handle => $connected_socket,
+      Driver => POE::Driver::SysRW->new,
+      Filter => POE::Filter::Stream->new,
+      InputEvent => 'socket_input',
+      ErrorEvent => 'socket_error',
+    );
+
+  $heap->{socket_wheel}->put("soundd 0.1 running\n");
+  print("Accepted connection...\n");
+}
+
+#------------------------------------------------------------------------------
+# The Socket somehow failed.  Close down everything so that POE will reap
+# the session and exit.
+
+sub session_connect_failure {
+  my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
+  print "!!! Connecting: $operation error $errnum: $errstr\n";
+  delete $heap->{connector};
+  delete $heap->{run_wheel};
+  delete $heap->{socket_wheel};
+}
+
+#------------------------------------------------------------------------------
+# The session has stopped.  Delete the wheels once again, just for
+# redundancy's sake.
+
+sub session_stop {
+  my $heap = $_[HEAP];
+  delete $heap->{connector};
+  delete $heap->{run_wheel};
+  delete $heap->{socket_wheel};
+}
+
+#------------------------------------------------------------------------------
+# Input from the running process.
+
+sub session_run_input {
+	print "Child says:",$_[ARG0],"\n";
+}
+
+#------------------------------------------------------------------------------
+# There has been an error on one of the run filehandles.  Close
+# down everything so that POE will reap the session and exit.
+
+sub session_run_error {
+  my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
+  if($errnum){
+	  print "!!! Run: $operation error $errnum: $errstr\n";
+	  delete $heap->{run_wheel};
+	  delete $heap->{socket_wheel};
+  };
+}
+
+#------------------------------------------------------------------------------
+# There has been an error on one of the run filehandles.  Close
+# down everything so that POE will reap the session and exit.
+
+sub session_run_close {
+  my ($kernel, $heap, $operation, $errnum, $errstr) = @_[KERNEL, HEAP, ARG0, ARG1, ARG2];
+  print "Run: close wheel $operation\n";
+  if($heap->{torun}){
+	  $kernel->yield("run",$heap->{torun});
+	  delete $heap->{torun};
+  }else{
+	  if($heap->{silent}){
+		  delete $heap->{silent};
+	  }else{
+		  $heap->{socket_wheel}->put("End of music\r\n");
+	  };
+	  delete $heap->{run_wheel};
+  };
+}
+
+#------------------------------------------------------------------------------
+# Socket input has arrived.  Start some serious sound action.
+
+sub session_socket_input {
+	my ($kernel, $heap, $command) = @_[KERNEL, HEAP, ARG0];
+	$command =~ s/[\r\n]*$//;
+	print("Socket: <$command>\n");
+	if ($command =~ s/^P //i){
+#		print "-> Play $command\n";
+		delete $heap->{silent};
+		if($heap->{run_wheel}){
+			print ("...with kill()\n");
+			$heap->{run_wheel}->kill();
+			$heap->{torun}=$command;
+		}else{
+			$kernel->yield("run",$command);
+		};
+	}elsif ($command =~ s/^S//i){
+		$heap->{silent}=1;
+		$heap->{run_wheel}->kill() if ($heap->{run_wheel});
+	}elsif ($command =~ s/^Z//i){
+		if ($heap->{run_wheel}){
+			print "ZZZZapp!!!\n";
+			$heap->{run_wheel}->kill();
+			delete $heap->{run_wheel};
+		};
+	}elsif ($command =~ s/^D//i){
+		$heap->{run_wheel}->kill() if ($heap->{run_wheel});
+		delete $heap->{run_wheel};
+		delete $heap->{socket_wheel};
+	}else{
+		print "-> Whooops?\n";
+	};
+};
+
+sub session_run {
+  my ($kernel, $heap, $command) = @_[KERNEL, HEAP, ARG0];
+  my $prg;
+
+
+  $command=$trans{$command}if(defined $trans{$command});
+
+  if($command=~/\.wav/){
+	  $prg="/usr/local/bin/playwave";
+  }elsif($command=~/\.mp3/){
+	  $prg="/usr/local/bin/mpg123";
+  }else{
+	  print STDERR "Don't know how to handle $command\n";
+	  return;
+  };
+
+  print("Starting $prg $command\n");
+
+  $heap->{run_wheel} = POE::Wheel::Run->new
+	  ( Program		=> [ $prg, $command ],
+		StdoutEvent => 'run_input',
+		StderrEvent => 'run_input',
+		ErrorEvent => 'run_error',
+		CloseEvent => 'run_close',
+	  );
+}
+
+#------------------------------------------------------------------------------
+# A socket error has occurred.  Close down everything so that POE will
+# reap the session and exit.
+
+sub session_socket_error {
+  my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
+  if($errnum){
+	  print "!!! Socket: $operation error $errnum: $errstr\n";
+	  delete $heap->{run_wheel};
+	  delete $heap->{socket_wheel};
+  };
+}
+
+#==============================================================================
+# Start the Session, which will fire off the _start event and begin
+# the connection.
+
+POE::Session->new
+  ( _start => \&session_start,
+    _stop  => \&session_stop,
+
+    connect_success => \&session_connect_success,
+    connect_failure => \&session_connect_failure,
+
+    run		    => \&session_run,
+    run_input   => \&session_run_input,
+    run_error   => \&session_run_error,
+    run_close   => \&session_run_close,
+
+    socket_input    => \&session_socket_input,
+    socket_error    => \&session_socket_error,
+  );
+
+$poe_kernel->run();
+
+exit;
