@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.6 2001/07/30 01:16:29 sec Exp sec $;
+	q$Id: beopardy,v 1.7 2001/08/08 20:42:57 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -422,8 +422,8 @@ sub selectQuest{
 
 	$tl->focusForce if ($force);
 
-	&ser_en($tl,$c,$f) if ($tty);
 	$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
+	$tl->afterIdle(sub {&ser_en($tl,$c,$f) if ($tty);}); # fix Bug#2
 };
 
 sub ser_answerQuest {
