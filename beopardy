@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.10 2002/12/23 15:45:13 sec Exp sec $;
+	q$Id: beopardy,v 1.11 2002/12/28 15:02:40 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -315,7 +315,7 @@ for my $cat (0..$#Cat){
 
 	for my $q (1..$q) {
 		$mframe[$cat][$q] = $frame[$cat]->Frame(
-				height => 1
+#				height => 1
 				)-> pack( -fill => 'both', -expand => 1);
 		$mframe[$cat][$q]->packPropagate(0);
 		$button[$cat][$q] = $mframe[$cat][$q]->Button(
@@ -417,6 +417,7 @@ if($splash){ # Splash-Screen
 	$dlg->overrideredirect(1);
 	my $q=$dlg->Label(qw/-relief raised -width 80/)->pack;
 
+	snd_play("start");
 	$i= $q->Pixmap("beopardy",-file => "img/beopardy.xpm");
 
 	if(defined($i)){
@@ -453,7 +454,7 @@ if($splash){ # Splash-Screen
 			-font	=> $qfont,
 #			-width	=> 30,
 			-height	=> 2,
-			-command	=> sub {$splash=0;&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$dlg->destroy;
+			-command	=> sub {$splash=0;&snd_stop;&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$dlg->destroy;
 			print SAV "[ply] ",join("/",@players),"\n";
 			},
 	)->pack(
@@ -498,6 +499,7 @@ sub ply_focus {
 			my $f=$splash_frame;
 			my $row=$key-1;
 			$players[$key]="New Player $key";
+			$points[$key]=0;
 			my $e = $f->Entry(qw/-relief sunken -width 40/);
 			$e->insert(0,$players[$key]);
 			$e->bind('<Return>',[\&ser_reset,\&ser_PlyEn]);
@@ -520,6 +522,7 @@ sub ply_focus {
 			return;
 		};
 		$dlgbtn->focus;
+#		$dlgbtn->focusForce if($force);
 	}else{
 		$elist[$key]->focus;
 		$elist[$key]->selectionRange(0,'end');
@@ -583,13 +586,18 @@ sub selectQuest{
 # XXX Pixmap-Hack. *funfunfun*
 
 	my ($typ,$fnam);
+	$typ="";
+	print $jdata{$Cat[$c]}[$f]," <-\n";
 	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)\]\s*/){
+		print "JA\n";
 		$typ=$1;$fnam=$2;
 		print "This is of $typ - \'$2\'\n";
 		if($typ eq "img"){
 			if(!defined($imgcache{$fnam})){
 				if(-f "img/".$fnam.".xpm"){
 					$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+				}else{
+					print "img/".$fnam.".xpm not found\n";
 				};
 			};
 		};
