@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.3 2000/12/25 17:57:09 sec Exp sec $;
+	q$Id: beopardy,v 1.4 2000/12/28 16:17:46 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -185,7 +185,7 @@ if ($#ARGV>0){
 	@players=qw(Foo Bar Baz);
 };
 
-my @colors=qw(darkred darkgreen darkblue);
+my @colors=qw(grey darkred darkgreen darkblue);
 
 unshift @players,"Nobody";
 my @points=(0)x($#players+1);
@@ -267,6 +267,8 @@ for (1..$#players){
 			-width		=>$namewidth,
 			-anchor		=>'w',
 			-textvar	=> \$players[$_],
+			-background	=> $colors[$_],
+			-foreground	=> "white",
 	)->pack;
 	$pscores[$_]=$pframes[$_]->Label(
 			-textvar	=> \$points[$_],
@@ -411,6 +413,7 @@ sub answerQuest{
 	my $sgn=1;
 	if($key eq "q"){
 		$crap->destroy;
+#&ser_dis;
 		$button[$c][$f]->focusForce if ($force);
 		return;
 	};
@@ -446,11 +449,9 @@ sub updPlayfield {
 	push @{$pts[$c][$f]},$sgn*$key;
 	my $pl=join("\n",map {($_<0?"-":" ").$players[abs]} @{$pts[$c][$f]});
 #	my $pl=join("",map {($_<0?"-":"+").abs} @{$pts[$c][$f]});
-	my $col;
-	$col=${pts[$c][$f]}[-1];
+	my $col=${pts[$c][$f]}[-1];
 	if($col<0){$col=0};
 	$col=$colors[$col];
-	print "$col<------------\n";
 	print ">$pl<\n";
 #	my $oheight=$button[$c][$f]->height;
 	$button[$c][$f]->configure(
@@ -463,6 +464,7 @@ sub updPlayfield {
 			-background			=> $col,
 	);
 #	$button[$c][$f]->GeometryRequest(40,$oheight/2);
+    print "Pts:\n",map {sprintf "%s:%d/",$players[$_],$points[$_]} (1..$#points);
 	return $pl;
 }
 
