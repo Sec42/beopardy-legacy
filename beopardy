@@ -15,6 +15,7 @@ use Tk::Dialog;
 use Socket;
 use FileHandle;
 use Getopt::Std;
+use IO::Handle;
 
 # Global options. Set via getopt.
 my $debug=0;
@@ -38,6 +39,7 @@ my %ln = (
 		"ist etwas unruhig"	=> "seems a bit nervous",
 		"Knopf loesen"		=> "release your button",
 		"nochmal"			=> "try again",
+		"Zuhören..."		=> "listen...",
 		);
 
 sub _ {
@@ -164,7 +166,7 @@ if($soundd){
 		my $paddr   = sockaddr_in($port, $iaddr);
 		$proto   = getprotobyname('tcp');
 		connect(Soundd, $paddr)							|| die "connect: $!";
-		autoflush Soundd
+		autoflush Soundd;
 };
 &snd_stop(0); # Just to make sure, and to install snd_eat.
 
@@ -533,7 +535,7 @@ sub ser_SelectPly {
 	my ($crap)=@_;
 
 	my $key=<Client>;
-	print "SER<: <$key>\n";
+	print "SER<: <$key>\n" if($debug);
 	$key=~s/\r?\n$//;
 	$key=$key+0;
 	if($key == 0){
@@ -621,7 +623,7 @@ sub selectQuest{
 		};
 		if($txt=~s/^\[(\w+):.*?\]\s*//){
 			if(!$txt){
-				$txt="Err. This should be of type $1";
+				$txt=_("Zuhören...");
 			};
 		};
 		$question = $tl->Label(
@@ -650,9 +652,10 @@ sub ser_answerQuest {
 	my ($crap,$c,$f)=@_;
 
 	my $key=<Client>;
-	print "SER<: <$key>\n";
+	print "SER<: <$key>\n" if($debug);
 
 #	&snd_play("think",1);
+	&snd_stop if($snd_save);
 
 	$key=~s/\r?\n$//;
 
@@ -686,7 +689,7 @@ sub ser_answerQuest {
 			-command	=> sub{
 							$ich->destroy;
 							&answerQuest($crap,$c,$f,-$key);
-#							&snd_resume;
+							&snd_resume;
 							$crap->focusForce if ($force);
 							&ser_en($crap,$c,$f)},
 	)->pack(-side	=>'left');
@@ -695,7 +698,7 @@ sub ser_answerQuest {
 			-command	=> sub{$ich->destroy;
 							  &ser_reset;
 #							  &snd_stop;
-#							  &snd_resume;
+							  &snd_resume;
 							  $crap->focusForce if ($force);
 							  &ser_en($crap,$c,$f)},
 	)->pack;
@@ -734,6 +737,7 @@ sub snd_play{
 	return if (!$soundd);
 	my($sound,$what)=(shift,shift);
 	print Soundd "P $sound\r\n";
+	Soundd->flush();
 	if($what){
 		$tl->fileevent(\*Soundd,'readable',[\&snd_color]); # DWIM!
 	}else{
@@ -743,11 +747,13 @@ sub snd_play{
 sub snd_stop{
 	return if (!$soundd);
 	print Soundd "Stop\r\n";
+	Soundd->flush();
 	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
 };
 sub snd_zap{
 	return if (!$soundd);
 	print Soundd "Z\r\n";
+	Soundd->flush();
 	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
 };
 
@@ -755,6 +761,7 @@ sub snd_resume{
 	return if (!$soundd);
 	if($snd_save){
 		print Soundd "P $snd_save\r\n";
+		Soundd->flush();
 	};
 	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
 };
@@ -819,7 +826,7 @@ sub updPlayfield {
 			-height				=> 0,
 			-width				=> 0,
 			-background			=> $col,
-			-font				=> $qfont,
+			-font				=> "fixed",
 	);
 #	$button[$c][$f]->GeometryRequest(40,$oheight/2);
     print "Pts:",(map {sprintf "%s:%d/",$players[$_],$points[$_]} (1..$#points)),"\n";
@@ -847,9 +854,10 @@ sub ser_reset{
 	do {
 		&ser_dis;
 		print Client "R\r\n";
-	print "SER>: R\n";
+		Client->flush();
+	print "SER>: R\n" if($debug);
 		$ok=<Client>;
-	print "SER<: <$ok>\n";
+	print "SER<: <$ok>\n" if($debug);
 		$ok=~s/\r?\n//;
 		if ($ok ne "A"){
 			if ($ok =~ /(\d)/) {
@@ -901,7 +909,7 @@ sub ser_fatal{
 sub ser_eat {
 	my $ref=shift;
 	my $foo=scalar(<Client>);
-	print "SER<: <$foo>\n";
+	print "SER<: <$foo>\n" if($debug);
 	print "got: ",$foo;
 	$foo=~s/\r?\n//;
 	if($foo =~ /^\d+$/){

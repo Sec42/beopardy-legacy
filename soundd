@@ -12,9 +12,15 @@ my $port = 32001;
 
 my %trans = (
 		"think" => "snd/thinktheme-new-short.wav",
-		"start" => "snd/TV Theme - Game Shows - Jeopardy!.mp3",
+#		"start" => "snd/TV Theme - Game Shows - Jeopardy!.mp3",
 		"f1" => "/home/sec/mp3/kinderlieder - wicki.mp3",
 		"f2" => "/home/sec/mp3/Alice im Wunderland 1981.mp3",
+	"b5" => "snd/b5.mp3",
+	"ds9" => "snd/ds9.mp3",
+	"enterprise" => "snd/enterprise.mp3",
+	"tng" => "snd/tng.mp3",
+	"tos" => "snd/tos.mp3",
+	"voyager" => "snd/voyager.mp3",
 		);
 
 #------------------------------------------------------------------------------
@@ -91,6 +97,7 @@ sub session_run_input {
 
 sub session_run_error {
   my ($heap, $operation, $errnum, $errstr) = @_[HEAP, ARG0, ARG1, ARG2];
+  print "!!! Run: $operation error $errnum: $errstr\n";
   if($errnum){
 	  print "!!! Run: $operation error $errnum: $errstr\n";
 	  delete $heap->{run_wheel};
@@ -131,6 +138,7 @@ sub session_socket_input {
 		if($heap->{run_wheel}){
 			print ("...with kill()\n");
 			$heap->{run_wheel}->kill();
+			print "ID: ",$heap->{run_wheel}->ID," PID: ", $heap->{run_wheel}->PID,"\n";
 			$heap->{torun}=$command;
 		}else{
 			$kernel->yield("run",$command);
@@ -143,6 +151,7 @@ sub session_socket_input {
 			print "ZZZZapp!!!\n";
 			$heap->{run_wheel}->kill();
 			delete $heap->{run_wheel};
+			delete $heap->{torun};
 		};
 	}elsif ($command =~ s/^D//i){
 		$heap->{run_wheel}->kill() if ($heap->{run_wheel});
@@ -162,8 +171,11 @@ sub session_run {
 
   if($command=~/\.wav/){
 	  $prg="/usr/local/bin/playwave";
+	  $prg="/usr/local/bin/esdplay";
+	  $prg="/usr/local/bin/mplayer -quiet";
   }elsif($command=~/\.mp3/){
 	  $prg="/usr/local/bin/mpg123";
+	  $prg="/home/sec/bin/mpg123sane";
   }else{
 	  print STDERR "Don't know how to handle $command\n";
 	  return;
@@ -172,7 +184,7 @@ sub session_run {
   print("Starting $prg $command\n");
 
   $heap->{run_wheel} = POE::Wheel::Run->new
-	  ( Program		=> [ $prg, $command ],
+	  ( Program		=> [ split(/ /,$prg), $command ],
 		StdoutEvent => 'run_input',
 		StderrEvent => 'run_input',
 		ErrorEvent => 'run_error',
