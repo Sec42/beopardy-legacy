@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.11 2002/12/28 15:02:40 sec Exp sec $;
+	q$Id: beopardy,v 1.12 2003/12/31 23:28:30 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -30,6 +30,11 @@ my $readfile;					# Should I read from a file?
 my $savefile=0;					# Should I save to a file?
 
 my $global_question_inhibit=0;
+
+my $global_is_dbl=0;
+my $global_dbl_maxamt=0;
+my $global_dbl_amt=0;
+my $global_dbl_ply=0;
 
 # L10n
 my %ln = (
@@ -389,6 +394,10 @@ if(defined $readfile){
 #			unshift @players,"Nobody";
 			next;
 		};
+		if(/^\[DBL\] (\d+)/){
+			$global_dbl_amt=$1;
+			$global_is_dbl=1;
+		};
 		next if(! /^\[sav\]/);
 		(undef,$c,$f,$sgn,$ply)=split;
 		print "$c - $f - $sgn - $ply\n";
@@ -568,6 +577,15 @@ sub selectQuest{
 	return if $global_question_inhibit;
 	print "Q$f / \"$Cat[$c]\":\n$jdata{$Cat[$c]}[$f]\n";
 
+	if( $jdata{$Cat[$c]}[$f] =~ s/\s*\[dbl\]\s*// && $global_is_dbl == 0){
+		$global_is_dbl=1;
+		&enterdbl;
+		return;
+	};
+	if($global_is_dbl == 1){
+		$_[3]->destroy;
+	};
+
 	my $tl = $otl->Toplevel;
 	$tl->fileevent(\*Client,'readable',"");
 	$tl->configure(-height => $height, -width => $width);
@@ -591,7 +609,7 @@ sub selectQuest{
 	$typ="";
 	print $jdata{$Cat[$c]}[$f]," <-\n";
 	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)\]\s*/){
-		print "JA\n";
+#		print "JA\n";
 		$typ=$1;$fnam=$2;
 		print "This is of $typ - \'$2\'\n";
 		if($typ eq "img"){
@@ -642,8 +660,14 @@ sub selectQuest{
 
 	$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
 
+	print("Hello $global_is_dbl \n");
 
-	$tl->afterIdle(sub {&ser_en($tl,$c,$f) if ($tty);}); # fix Bug#2
+	$tl->waitVisibility; # To fix stacking order
+	if($global_is_dbl){
+		$tl->afterIdle(sub {&ser_answerQuest($tl,$c,$f) if ($tty);});
+	}else{
+		$tl->afterIdle(sub {&ser_en($tl,$c,$f) if ($tty);}); # fix Bug#2
+	};
 };
 
 my @cur_ser_answer=undef;
@@ -651,10 +675,14 @@ my @cur_ser_answer=undef;
 sub ser_answerQuest {
 	my ($crap,$c,$f)=@_;
 
-	my $key=<Client>;
+	my $key;
+	if($global_is_dbl==1){
+		$key=$global_dbl_ply;
+	}else{
+		$key=<Client>;
+	};
 	print "SER<: <$key>\n" if($debug);
 
-#	&snd_play("think",1);
 	&snd_stop if($snd_save);
 
 	$key=~s/\r?\n$//;
@@ -776,6 +804,7 @@ sub answerQuest{
 		$crap->destroy;
 		&ser_dis if ($tty);  # "input nach 'q' auf frage" fix.
 		$button[$c][$f]->focusForce if ($force);
+		$global_dbl_ply=0; # Nobody has the tag...
 		return;
 	};
 	&snd_stop() if ($key eq "0"); # XXX
@@ -807,8 +836,17 @@ sub answerQuest{
 sub updPlayfield {
 	my ($c,$f,$key,$sgn)=@_;
 	print $sgn<0?"bad":"good"," for ",$players[$key],"\n";
+	print SAV "[DBL] $global_dbl_amt\n" if ($global_is_dbl);
 	print SAV "[sav] $c $f $sgn $key\n";
-	$points[$key]+=$sgn*$f*100;
+	if($global_is_dbl){
+		$points[$key]+=$sgn*$global_dbl_amt;
+		$global_is_dbl=0;
+	}else{
+		$points[$key]+=$sgn*$f*100;
+	};
+	if($sgn>0){
+		$global_dbl_ply=$key;
+	}; # cache player who has the tag....
 	
 	push @{$pts[$c][$f]},$sgn*$key;
 	my $pl=join("\n",map {($_<0?"-":" ").$players[abs]} @{$pts[$c][$f]});
@@ -935,3 +973,80 @@ sub snd_color {
 	};
 
 };
+
+sub enterdbl {
+	my ($crap,$c,$f)=@_;
+
+	my $ich=$crap->Toplevel;
+
+	$global_dbl_maxamt=100*$f*2;
+	$global_dbl_amt=100*$f;
+
+	$ich->overrideredirect(1) if($override);
+	$ich->resizable(0,0);
+	$ich->geometry("-0-0");
+
+
+	my $ftl = $ich->Frame( -relief => 'ridge', -bd => 4)->pack;
+	my $ttl=$ftl->Label(
+			-text	=> "Double Jeopardy",
+			-font	=> $qfont,
+	)->pack(
+			-fill	=>'x',
+			-expand	=> 1,
+	);
+	my $ply=$ftl->Label(
+			-text	=> $players[$global_dbl_ply],
+			-background	=> $colors[$global_dbl_ply],
+			-font	=> $qfont,
+	)->pack(
+			-fill	=>'x',
+			-expand	=> 1,
+	);
+	my $amnt=$ftl->Label(
+			-textvar	=> \$global_dbl_amt,
+			-font	=> $qfont,
+	)->pack(
+			-fill	=>'x',
+			-expand	=> 1,
+	);
+	
+	my $bframe=$ftl->Frame->pack(-fill=>'both',-expand=>1);
+
+	my $br=$bframe->Button(
+			-text		=> _('Ok'),
+			-command	=> sub{
+#							printf("reenter selQ?");
+							&selectQuest($crap,$c,$f,$ich);
+							},
+	)->pack(-fill	=>'x', -expand => 1);
+
+	$br->bind('<j>',sub{&amt_chg(-50)});
+	$br->bind('<k>',sub{&amt_chg(+50)});
+	$br->bind('<l>',sub{&dblplychg($ply,+1)});
+	$br->bind('<h>',sub{&dblplychg($ply,-1)});
+# inzwischen ist Nick der faule hier.
+	$br->bind('<Right>',sub{&dblplychg($ply,+1)});
+	$br->bind('<Left>',sub{&dblplychg($ply,-1)});
+	$br->bind('<Up>',sub{&amt_chg(+50)});
+	$br->bind('<Down>',sub{&amt_chg(-50)});
+
+	$br->focus;
+	$br->focusForce if($force);
+};
+
+sub amt_chg{
+	$global_dbl_amt+=shift;
+	if($global_dbl_amt<0){$global_dbl_amt=0};
+	if($global_dbl_amt>$global_dbl_maxamt){$global_dbl_amt=$global_dbl_maxamt};
+};
+
+sub dblplychg{
+	my($ply,$dir)=@_;
+	$global_dbl_ply+=$dir;
+	$global_dbl_ply=$#players if($global_dbl_ply<1);
+	$global_dbl_ply=1 if ($global_dbl_ply>$#players);
+	$ply->configure(-text => $players[$global_dbl_ply],
+			-background	=> $colors[$global_dbl_ply]);
+};
+
