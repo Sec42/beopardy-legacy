@@ -315,7 +315,7 @@ for my $cat (0..$#Cat){
 
 	for my $q (1..$q) {
 		$mframe[$cat][$q] = $frame[$cat]->Frame(
-#				height => 1
+				height => 1
 				)-> pack( -fill => 'both', -expand => 1);
 		$mframe[$cat][$q]->packPropagate(0);
 		$button[$cat][$q] = $mframe[$cat][$q]->Button(
