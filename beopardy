@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.5 2001/04/05 17:45:08 sec Exp sec $;
+	q$Id: beopardy,v 1.6 2001/07/30 01:16:29 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -23,9 +23,29 @@ my $force=0;					# move focus for kbd-mode?
 my $tty=0;						# use tty/serial input?
 my $socket=0;					# tty emulated by tcp socket?
 my $geometry=0;					# How big should I be?
+my $readfile;					# Should I read from a file?
+my $savefile=0;					# Should I save to a file?
+
+# L10n
+my %ln = (
+		"Richtig"			=> "right",
+		"Falsch"			=> "wrong",
+		"Oops"				=> "oops",
+		"ist etwas unruhig"	=> "seems a bit nervous",
+		"Knopf loesen"		=> "release your button",
+		);
+
+sub _ {
+	my $key=shift;
+	if (defined ($ln{$key})){
+		return $ln{$key};
+	}else{
+		return $key;
+	};
+};
 
 my %opt;
-getopts('doftsg:h', \%opt);
+getopts('doftsg:r:hw', \%opt);
 
 # Possible screen sizes
 my %screen=( 320 => 200,
@@ -41,18 +61,20 @@ This is Beopardy $beopardy[2] $beopardy[3].
 
 beopardy -options Gamefile Player1 Player2 ...
 
--h	This help.
--d	Debug mode. Print lots'o stuff.
--o	Override. Ignore Windowmanager. (fullscreen)
--f	Force keyboard focus.           (fullscreen)
--t	Tty input. Use when Buzzers are connected.
--s	Socket. Emulate Tty input via tcp socket (port 3333)
--g	geometry. Select window size.
-	0: fullscreen (default)
+-h		This help.
+-d		Debug mode. Print lots'o stuff.
+-o		Override. Ignore Windowmanager. (fullscreen)
+-f		Force keyboard focus.           (fullscreen)
+-t		Tty input. Use when Buzzers are connected.
+-s		Socket. Emulate Tty input via tcp socket (port 3333)
+-r <file>	Read saved game from File.
+-w		Save game progress for reading with -r.
+-g <size>	geometry. Select window size.
+		0: fullscreen (default)
 EOF
 	my $x=1;
 	foreach (sort {$a <=> $b } keys %screen){
-		printf "\t%1d: %4dx%4d\n",$x++,$_,$screen{$_};
+		printf "\t\t%1d: %4dx%4d\n",$x++,$_,$screen{$_};
 	}
 	print "";
 	exit(42);
@@ -63,6 +85,13 @@ $override=1	if (defined $opt{o});
 $force=1	if (defined $opt{f});
 $tty=1		if (defined $opt{t});
 $socket=1	if (defined $opt{s});
+$savefile=1	if (defined $opt{w});
+
+if($opt{r}){ # Read savefile
+	if ( -f $opt{r} ){
+		$readfile=$opt{r};
+	};
+};
 
 if ($socket){$tty=1};	# socket emulates tty.
 
@@ -103,7 +132,7 @@ if ($tty){
 		my $paddr = accept(Client,Server);
 		my($iport,$iaddr) = sockaddr_in($paddr);
 		my $name = gethostbyaddr($iaddr,AF_INET);
-		print "connection from $name [", inet_ntoa($iaddr), "] at port $iport";
+		print "connection from $name [", inet_ntoa($iaddr), "] at port $iport\n";
 	}else{
 		# Be sure to set device to -crtscts 19200
 		open(Client,"+>/dev/cuaa0") || die "open: $!";
@@ -139,6 +168,12 @@ printf "%-20s:%2d\n",$nam,$c if ($debug);
 
 print "Totalling ",(scalar keys %jdata)," categories.\n";
 
+sub logname{
+	my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = localtime(time);
+	$year+=1900;$mon++;
+	return (sprintf "%04d%02d%02d.%02d%02d",$year,$mon,$mday,$hour,$min);
+}
+
 sub read_game{
 	my @Cat;			# Namen der Kategorien
 	my $q=shift;		# Wieviele Fragen/Kategorie?
@@ -172,6 +207,15 @@ sub read_game{
 		print "Hit enter to continue...\n";
 		$p=<>;
 	};
+	if($savefile){
+		my($ts)=logname();
+		open(SAV,">$gamefile.$ts");
+		select(SAV);$|=1;
+		select(STDOUT);
+	}else{
+		open(SAV,">-");
+	};
+
 	return $title,@Cat;
 };
 
@@ -185,7 +229,9 @@ if ($#ARGV>0){
 	@players=qw(Foo Bar Baz);
 };
 
-my @colors=qw(grey darkred darkgreen darkblue);
+print SAV "[ply] ",join("/",@players),"\n";
+
+my @colors=qw(darkgrey darkred darkgreen darkblue);
 
 unshift @players,"Nobody";
 my @points=(0)x($#players+1);
@@ -194,6 +240,7 @@ my @points=(0)x($#players+1);
 #my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--40-*-*-*-*-*-iso8859-1');
 my $qfont=$tl->X11Font('-truetype-arial-medium-r-*-*-40-*-*-*-*-*-ascii-*');
 print "Question-Font:\n$qfont\n" if ($debug);
+my $qsfont=$tl->X11Font('-truetype-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
 
 #my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
 my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-36-*-*-*-*-*-iso8859-1');
@@ -212,7 +259,7 @@ my $tlabel = $tl -> Label (
 ) -> pack(-fill	=> 'x');
 
 $tl->eventAdd('<<quit>>'=>'<Button-3>');
-$tl->eventAdd('<<quit>>'=>'<q>');
+$tl->eventAdd('<<quit>>'=>'<Q>');
 $tl->bind('<<quit>>',sub{print "Done:\n",map {sprintf "%10s:%5d\n",$players[$_],$points[$_]} sort {$points[$b]<=>$points[$a]} (1..$#points);exit});
 
 # Game-Buttons.
@@ -242,6 +289,11 @@ for my $cat (0..$#Cat){
 		$button[$cat][$q]->bind('<j>',[\&moveCrsr,$cat  ,$q+1]);
 		$button[$cat][$q]->bind('<k>',[\&moveCrsr,$cat  ,$q-1]);
 		$button[$cat][$q]->bind('<l>',[\&moveCrsr,$cat+1,$q  ]);
+# Fuer mh, der die VI-Keys nicht mag...
+		$button[$cat][$q]->bind('<Left>' ,[\&moveCrsr,$cat-1,$q  ]);
+		$button[$cat][$q]->bind('<Down>' ,[\&moveCrsr,$cat  ,$q+1]);
+		$button[$cat][$q]->bind('<Up>'   ,[\&moveCrsr,$cat  ,$q-1]);
+		$button[$cat][$q]->bind('<Right>',[\&moveCrsr,$cat+1,$q  ]);
 	};
 };
 $button[0][1]->focus;
@@ -279,6 +331,19 @@ for (1..$#players){
 };
 
 #print "Board done.\n";
+
+if(defined $readfile){
+	my($c,$f,$sgn,$ply);
+	print "Reading Savegame...\n";
+	open(RSAV,$readfile) || die "Savegame error: $!";
+	while(<RSAV>){
+		next if(! /^\[sav\]/);
+		(undef,$c,$f,$sgn,$ply)=split;
+		print "$c - $f - $sgn - $ply\n";
+		updPlayfield($c,$f,$ply,$sgn);
+	};
+	close(RSAV);
+};
 
 print "\nGame start.\n\n";
 
@@ -330,13 +395,27 @@ sub selectQuest{
 	) -> pack(-fill	=> 'x');
 
 # XXX Pixmap-Hack. *funfunfun*
-	my $i= $tl->Pixmap("dummy",-file => "sec.xpm");
-	
-	my $question = $tl->Label(
+
+	my ($i,$fnam);
+	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img):(.*?)\]/){
+		$fnam=$2;
+		print "This is a $1 - $2\n";
+		$i= $tl->Pixmap($fnam,-file => $fnam.".xpm");
+	}
+
+	my $question;
+	if (defined $i){
+		$question = $tl->Label(
+			-image	=> "$fnam",
+		);
+	}else{
+		$question = $tl->Label(
 			-text	=> $jdata{$Cat[$c]}[$f],
-#			-image	=> "dummy",
 			-font	=> $qfont,
-	)->pack(
+		);
+	};
+
+	$question->pack(
 			-fill	=>'both',
 			-expand	=>1
 	);
@@ -351,7 +430,7 @@ sub ser_answerQuest {
 	my ($crap,$c,$f)=@_;
 
 	my $key=<Client>;
-	$key=~s/\r\n$//;
+	$key=~s/\r?\n$//;
 
 	my $ich=$crap->Toplevel;
 
@@ -365,16 +444,16 @@ sub ser_answerQuest {
 			-font	=> $qfont,
 	)->pack(
 			-fill	=>'x',
-			-expand	=>1,
+			-expand	=> 1,
 	);
 	my $bframe=$ftl->Frame->pack(-fill=>'both',-expand=>1);
 
 	my $br=$bframe->Button(
-			-text		=> 'Richtig',
+			-text		=> _('Richtig'),
 			-command	=> [\&answerQuest,$crap,$c,$f,$key],
 	)->pack(-side	=>'left');
 	my $bf=$bframe->Button(
-			-text		=> 'Falsch',
+			-text		=> _('Falsch'),
 			-command	=> sub{
 							$ich->destroy;
 							&answerQuest($crap,$c,$f,-$key);
@@ -382,7 +461,7 @@ sub ser_answerQuest {
 							&ser_en($crap,$c,$f)},
 	)->pack(-side	=>'left');
 	my $bo=$bframe->Button(
-			-text		=> 'Oops',
+			-text		=> _('Oops'),
 			-command	=> sub{$ich->destroy;
 							  &ser_reset;
 							  $crap->focusForce if ($force);
@@ -399,6 +478,13 @@ sub ser_answerQuest {
 	$br->bind('<h>',sub{$bo->focus});
 	$bf->bind('<h>',sub{$br->focus});
 	$bo->bind('<h>',sub{$bf->focus});
+# mh ist auch hier faul :)
+	$br->bind('<Right>',sub{$bf->focus});
+	$bf->bind('<Right>',sub{$bo->focus});
+	$bo->bind('<Right>',sub{$br->focus});
+	$br->bind('<Left>' ,sub{$bo->focus});
+	$bf->bind('<Left>' ,sub{$br->focus});
+	$bo->bind('<Left>' ,sub{$bf->focus});
 
 	$br->focusForce if($force);
 
@@ -419,7 +505,7 @@ sub answerQuest{
 	my $sgn=1;
 	if($key eq "q"){
 		$crap->destroy;
-#&ser_dis;
+		&ser_dis if ($tty);  # "input nach 'q' auf frage" fix.
 		$button[$c][$f]->focusForce if ($force);
 		return;
 	};
@@ -450,6 +536,7 @@ sub answerQuest{
 sub updPlayfield {
 	my ($c,$f,$key,$sgn)=@_;
 	print $sgn<0?"bad":"good"," for ",$players[$key],"\n";
+	print SAV "[sav] $c $f $sgn $key\n";
 	$points[$key]+=$sgn*$f*100;
 	
 	push @{$pts[$c][$f]},$sgn*$key;
@@ -458,7 +545,7 @@ sub updPlayfield {
 	my $col=${pts[$c][$f]}[-1];
 	if($col<0){$col=0};
 	$col=$colors[$col];
-	print ">$pl<\n";
+#	print ">$pl<\n";
 #	my $oheight=$button[$c][$f]->height;
 	$button[$c][$f]->configure(
 			-text				=> $pl,
@@ -468,9 +555,10 @@ sub updPlayfield {
 			-height				=> 1,
 			-width				=> 1,
 			-background			=> $col,
+			-font				=> $qfont,
 	);
 #	$button[$c][$f]->GeometryRequest(40,$oheight/2);
-    print "Pts:\n",map {sprintf "%s:%d/",$players[$_],$points[$_]} (1..$#points);
+    print "Pts:",(map {sprintf "%s:%d/",$players[$_],$points[$_]} (1..$#points)),"\n";
 	return $pl;
 }
 
@@ -487,6 +575,8 @@ sub moveCrsr{
 sub ser_reset{
 	print "Resetting...\n" if ($debug);
 	my $ok;
+	my $quux= $tl->focusSave();
+
 	$reset->deiconify;
 	$reset->raise;
 	$reset->grab;
@@ -494,39 +584,45 @@ sub ser_reset{
 		&ser_dis;
 		print Client "R\r\n";
 		$ok=<Client>;
-		if ($ok ne "A\r\n"){
-			if ($ok =~ /(\d)\r\n/) {
-				&ser_fatal($players[$1].", bitte Knopf loesen.");
+		$ok=~s/\r?\n//;
+		if ($ok ne "A"){
+			if ($ok =~ /(\d)/) {
+				&ser_fatal($players[$1].", "._("Knopf loesen").".");
 			}else{
 				&ser_fatal("ser_reset got $ok");
 			};
 		};
-	}while($ok ne "A\r\n");
+	}while($ok ne "A");
 	print "...done\n" if ($debug);
 	$reset->grabRelease;
 	$reset->withdraw;
-	$tl->focusForce;
+#	$tl->focusForce if ($force);
+	&$quux;
 };
 
 sub ser_noinp{
-	&ser_fatal("ser_junk");
+	&ser_fatal("");
 	&ser_reset;
 #	$button[0][0]->focus;
 };
 
 
 sub ser_fatal{
-	my $fatal=(shift)."\n";
+	my $fatal=(shift);
+
+	my $quux= $tl->focusSave();
+#	print "froobel: ",$quux,"\n";
 
 	$tl->fileevent(\*Client,'readable',[\&ser_eat,\$fatal]);
 
-	my $answer = $tl->Dialog(-title => "ser_reset",
+	my $answer = $tl->Dialog(-title => "ser_junk",
 			-textvar => \$fatal,
 			-buttons => [ "try again" ],
 			);
 	$answer->overrideredirect(1);
 	$answer->focusForce;
 	$answer->Show();
+	&$quux;
 };
 
 # Eat anything you get.
@@ -534,6 +630,11 @@ sub ser_eat {
 	my $ref=shift;
 	my $foo=scalar(<Client>);
 	print "got: ",$foo;
-	chomp($foo);
+	$foo=~s/\r?\n//;
+	if($foo =~ /^\d+$/){
+		$foo = $players[$foo] ." ". _("ist etwas unruhig")."\n";
+	}else{
+		$foo="Unexpected serial input:\n$foo\n";
+	};
 	${$ref}.=$foo;
 };
