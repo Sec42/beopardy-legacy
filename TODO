@@ -4,7 +4,6 @@ preis vorher announcen.
 ---
 Feature requests: 14.8.01
 
-Start button -> splashscreen (screenfull, force focus, enter)
 Rahmen fuer hjkl sichtbarer.
 Sound?
 Fonts passend fuer Feldbreiten.
@@ -20,7 +19,6 @@ Bonuspunkte: eher auch nicht.
 
 Namen am splashscreen eingeben
 
-Loadgame namen passen, loadgame rundenname
 ---
 Edit-mode
 ser_junk, knoepfe anders benennen
@@ -55,3 +53,9 @@ fixed.
 9.8.01
 - [Bug#2] Button press window got obscured by question popup.
 uses ->afterIdle now.
+
+26.12.01
+- Start button -> splashscreen (screenfull, force focus, enter)
+Komplett neuer splashscreen mit player namen eingabe
+- Loadgame namen passen, loadgame rundenname
+Rundenname steht bisher nicht in den Savegames. Playernamen tun schon.
