@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.12 2003/12/31 23:28:30 sec Exp sec $;
+	q$Id: beopardy,v 1.13 2004/12/25 13:11:47 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -302,6 +302,7 @@ $tl->bind('<Z>',sub{&snd_zap()});
 my $bframe=$tl->Frame->pack(-fill=>'both',-expand=>1);
 my @button;	# The TkButtons 
 my @pts;	# Who got points from this question?
+my @log;	# Pointslog
 my @frame;  # The TkFrames, one per category.
 my @mframe; # A frame per button to avoid stupid resizing.
 for my $cat (0..$#Cat){
@@ -334,7 +335,8 @@ for my $cat (0..$#Cat){
 		$button[$cat][$q]->bind('<j>',[\&moveCrsr,$cat  ,$q+1]);
 		$button[$cat][$q]->bind('<k>',[\&moveCrsr,$cat  ,$q-1]);
 		$button[$cat][$q]->bind('<l>',[\&moveCrsr,$cat+1,$q  ]);
-#		$button[$cat][$q]->bind('<e>',[\&edit_pts,$cat  ,$q  ]);
+		$button[$cat][$q]->bind('<e>',[\&edit_pts,$cat  ,$q  ]);
+		$button[$cat][$q]->bind('<f>',[\&finish]);
 # Fuer mh, der die VI-Keys nicht mag...
 		$button[$cat][$q]->bind('<Left>' ,[\&moveCrsr,$cat-1,$q  ]);
 		$button[$cat][$q]->bind('<Down>' ,[\&moveCrsr,$cat  ,$q+1]);
@@ -346,6 +348,9 @@ $button[0][1]->focus;
 #$button[0][1]->focusForce if ($force);
 
 @points=(0)x(4);
+if($#players>3){
+	@points=(0)x($#players+1);
+};
 sub scoreboard(){ # Scoreboard.
 my $sframe=$tl->Frame->pack(-side=>'top',-fill=>'x');
 my @pborder;
@@ -394,7 +399,7 @@ if(defined $readfile){
 #			unshift @players,"Nobody";
 			next;
 		};
-		if(/^\[DBL\] (\d+)/){
+		if(/^\[DBL\] (-?\d+)/){
 			$global_dbl_amt=$1;
 			$global_is_dbl=1;
 		};
@@ -607,7 +612,7 @@ sub selectQuest{
 
 	my ($typ,$fnam);
 	$typ="";
-	print $jdata{$Cat[$c]}[$f]," <-\n";
+	print $jdata{$Cat[$c]}[$f]," <-\n" if($debug);
 	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)\]\s*/){
 #		print "JA\n";
 		$typ=$1;$fnam=$2;
@@ -659,8 +664,6 @@ sub selectQuest{
 	$tl->focusForce if ($force);
 
 	$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
-
-	print("Hello $global_is_dbl \n");
 
 	$tl->waitVisibility; # To fix stacking order
 	if($global_is_dbl){
@@ -838,6 +841,7 @@ sub updPlayfield {
 	print $sgn<0?"bad":"good"," for ",$players[$key],"\n";
 	print SAV "[DBL] $global_dbl_amt\n" if ($global_is_dbl);
 	print SAV "[sav] $c $f $sgn $key\n";
+	push @{$log[$c][$f]},[$sgn,$key,$global_is_dbl?$global_dbl_amt:0];
 	if($global_is_dbl){
 		$points[$key]+=$sgn*$global_dbl_amt;
 		$global_is_dbl=0;
@@ -848,27 +852,8 @@ sub updPlayfield {
 		$global_dbl_ply=$key;
 	}; # cache player who has the tag....
 	
-	push @{$pts[$c][$f]},$sgn*$key;
-	my $pl=join("\n",map {($_<0?"-":" ").$players[abs]} @{$pts[$c][$f]});
-#	my $pl=join("",map {($_<0?"-":"+").abs} @{$pts[$c][$f]});
-	my $col=${pts[$c][$f]}[-1];
-	if($col<0){$col=0};
-	$col=$colors[$col];
-#	print ">$pl<\n";
-#	my $oheight=$button[$c][$f]->height; print "$c/$f: $oheight\n";
-	$button[$c][$f]->configure(
-			-text				=> $pl,
-			-relief				=> "flat",
-			-foreground			=>'grey',
-			-activeforeground	=>'grey',
-			-height				=> 0,
-			-width				=> 0,
-			-background			=> $col,
-			-font				=> "fixed",
-	);
-#	$button[$c][$f]->GeometryRequest(40,$oheight/2);
+	updBox($button[$c][$f],$c,$f);
     print "Pts:",(map {sprintf "%s:%d/",$players[$_],$points[$_]} (1..$#points)),"\n";
-	return $pl;
 }
 
 sub moveCrsr{
@@ -1050,3 +1035,204 @@ sub dblplychg{
 			-background	=> $colors[$global_dbl_ply]);
 };
 
+sub edit_pts {
+	my($widget,$c,$f)=@_;
+	print "Edit!\n";
+
+	my $ichtl=$widget->Toplevel;
+	$ichtl->overrideredirect(1) if($override);
+	$ichtl->resizable(0,0);
+#	$ichtl->geometry("+100+100");
+
+	my $ich = $ichtl->Frame( -relief => 'ridge', -bd => 4)->pack;
+	$ich->Label(
+			-text	=> "$Cat[$c] ${f}00",
+			-font	=> $tfont,
+	)->pack(
+			-fill	=>'x',
+			-expand	=> 1,
+	);
+
+	push @{$log[$c][$f]},[0,0,0];
+
+	my @ebtn;
+	for (0..$#{$log[$c][$f]}){
+		my ($sgn,$ply,$dbl)=@{$log[$c][$f][$_]};
+#		print "$sgn $ply $dbl\n";
+		$ebtn[$_]=$ich->Button(
+				-text		=> "$players[$ply] $sgn [$dbl]",
+				-command	=> sub{ ; },
+				-background	=> $colors[$ply],
+				-foreground	=> "white",
+			)->pack(-fill	=>'x', -expand => 1);
+	};
+
+	my $br=$ich->Button(
+			-text		=> 'Use: 0-4 +-d and Left-Right.',
+			-command	=> sub{
+							$ichtl->destroy;
+							updBox($widget,$c,$f);
+							$widget->focusForce if ($force);
+							},
+	)->pack(-fill	=>'x', -expand => 1);
+
+	for (0..$#ebtn){
+		my $cur=$ebtn[$_];
+		$cur->bind('<d>' ,[ \&adjscore, $c,$f,$_, 0,0]);
+		$cur->bind('<plus>' ,[ \&adjscore, $c,$f,$_, 0,+1]);
+		$cur->bind('<minus>' ,[ \&adjscore, $c,$f,$_, 0,-1]);
+		$cur->bind('<KeyPress-0>' ,[ \&adjscore, $c,$f,$_, 1,0]);
+		$cur->bind('<KeyPress-1>' ,[ \&adjscore, $c,$f,$_, 1,1]);
+		$cur->bind('<KeyPress-2>' ,[ \&adjscore, $c,$f,$_, 1,2]);
+		$cur->bind('<KeyPress-3>' ,[ \&adjscore, $c,$f,$_, 1,3]);
+		$cur->bind('<KeyPress-4>' ,[ \&adjscore, $c,$f,$_, 1,4]) if($#players==4);
+		$cur->bind('<Left>'  ,[ \&adjscore, $c,$f,$_, 2,-50]);
+		$cur->bind('<Right>' ,[ \&adjscore, $c,$f,$_, 2,+50]);
+	};
+
+	push @ebtn,$br;
+
+	for (0..$#ebtn){
+		my $prev=$ebtn[$_-1];
+		my $next=$ebtn[$_+1];
+		$ebtn[$_]->bind('<k>' ,sub{$prev->focus}) unless $_ == 0;
+		$ebtn[$_]->bind('<Up>' ,sub{$prev->focus}) unless $_ == 0;
+		$ebtn[$_]->bind('<Down>' ,sub{$next->focus}) unless $_ == $#ebtn;
+		$ebtn[$_]->bind('<j>' ,sub{$next->focus}) unless $_ == $#ebtn;
+		$ebtn[$_]->bind('<q>' ,sub{$ichtl->destroy;
+							updBox($widget,$c,$f);
+							$widget->focusForce if ($force);
+							} 
+				);
+	};
+
+	$br->focus;
+	$br->focusForce if($force);
+
+	$ichtl->idletasks;
+	$ichtl->geometry(sprintf "+%d+%d",($ich->screenwidth-$ich->width)/2,($ich->screenheight-$ich->height)/2);
+
+};
+
+sub adjscore{
+	my ($wid,$c,$f,$nr,$adjw,$adjto)=@_;
+#	print "adj $adjw $adjto\n";
+	my $pts=$f*100;
+	$pts= $log[$c][$f][$nr][2] if($log[$c][$f][$nr][2]);
+	$pts*=$log[$c][$f][$nr][0];
+	$points[$log[$c][$f][$nr][1]]-=$pts;
+
+	print SAV "<edit>\n";
+	print SAV "[DBL] $log[$c][$f][$nr][2]\n" if($log[$c][$f][$nr][2]);
+	print SAV "[sav] $c $f ".(-$log[$c][$f][$nr][0])." ".($log[$c][$f][$nr][1])."\n";
+
+	if($adjw==2){
+	$log[$c][$f][$nr][$adjw]+=$adjto;
+	}else{
+	$log[$c][$f][$nr][$adjw]=$adjto;
+	};
+
+	$pts=$f*100;
+	$pts= $log[$c][$f][$nr][2] if($log[$c][$f][$nr][2]);
+	$pts*=$log[$c][$f][$nr][0];
+	$points[$log[$c][$f][$nr][1]]+=$pts;
+
+	print SAV "[DBL] $log[$c][$f][$nr][2]\n" if($log[$c][$f][$nr][2]);
+	print SAV "[sav] $c $f ".($log[$c][$f][$nr][0])." ".($log[$c][$f][$nr][1])."\n";
+
+	$wid->configure(-text=>"$players[$log[$c][$f][$nr][1]] $log[$c][$f][$nr][0] [$log[$c][$f][$nr][2]]",
+			-background	=> $colors[$log[$c][$f][$nr][1]]
+			);
+};
+
+sub updBox{
+	my($wid,$c,$f)=@_;
+
+	my $pl="";
+	my $col=$colors[0];
+
+	my @lst;
+	@lst=@{$log[$c][$f][$#{$log[$c][$f]}]};
+	if ($lst[0]==0 && $lst[1] ==0){
+		pop@{$log[$c][$f]};
+	};
+
+	for(@{$log[$c][$f]}){
+		my ($sgn,$ply,$dbl)=@{$_};
+		next if($sgn==0);
+		$pl.="\n"if($pl);
+		$pl.=($sgn==1?"+":"-").$players[$ply].($dbl?"[d]":"");
+		if($sgn>0 && $ply>0){
+			$col=$colors[$ply];
+		}
+	}
+
+	$wid->configure(
+			-text				=> $pl,
+			-relief				=> "flat",
+			-foreground			=>'grey',
+			-activeforeground	=>'grey',
+			-height				=> 0,
+			-width				=> 0,
+			-background			=> $col,
+			-font				=> "fixed",
+	);
+}
+
+sub finish{
+	my $dlg=$tl->Toplevel;
+	my $i;
+	my $rframe;
+	my @win=sort {$points[$b]<=>$points[$a]} (1..$#points);
+	unshift @win,"0";
+
+#	$dlg->configure(-height => $height, -width => $width);
+#	$dlg->resizable(0,0);
+#	$dlg->packPropagate(0);	# Keep the size.
+	$dlg->overrideredirect(1);
+	my $q=$dlg->Label(qw/-relief raised -width 80/)->pack;
+
+	snd_play("end");
+	$i= $q->Pixmap("beopardy",-file => "img/beopardy.xpm");
+	if(defined($i)){
+		$q->Label(-image=>"beopardy")->pack(-side=>"top");
+	};
+
+	my $f = $q->Frame->pack(-fill=>'both',-expand=>1);
+	my $row=0;
+	foreach (1..$#players) {
+		my $e = $f->Label(qw/-relief sunken/);
+		$e->configure(-text => $points[$win[$_]]);
+		$e->configure(-font => $qfont) if ($_ == 1);
+
+		my $l = $f->Label(-text => "$players[$win[$_]]", 
+			-width		=> $namewidth,
+			-background	=> $colors[$win[$_]],
+			-foreground	=> "white",
+#			-anchor 	=> 'e', 
+			-justify => 'center');
+		$l->configure(-font => $qfont) if ($_ == 1);
+
+		Tk::grid( $l, -row => $row, -column => 0, -sticky => 'e');
+		Tk::grid( $e, -row => $row++, -column => 1,-sticky => 'ew');
+		$f->gridRowconfigure(1,-weight => 1);  
+	}
+	$dlgbtn=$q->Button(
+			-text	=> "bye",
+#			-font	=> $qfont,
+#			-width	=> 30,
+#			-height	=> 2,
+			-command	=> sub {&snd_stop;&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$dlg->destroy; },
+	)->pack(
+			-fill	=>'x',
+			-expand	=>1,
+	);
+
+	$dlg->idletasks;
+	$dlg->geometry(sprintf "+%d+%d",($dlg->screenwidth-$dlg->width)/2,($dlg->screenheight-$dlg->height)/2);
+
+	$dlg->raise;
+	$dlg->grab;
+	$dlg->focusForce;
+	$tl->lower($dlg);
+};
