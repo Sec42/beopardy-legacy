@@ -1,16 +1,39 @@
-Mit hjkl / Enter oder Mouse/Button1 eine Frage waehlen.
+./beopardy -h  fuer commandline switches.
 
-1-n fuer n'ter Player hat richtig geantwortet, 0 fuer keiner.
-q ist 'Frage zurueckstellen'
+Standard Congress Game: ./beopardy -oftyw RundeX.jg
 
-Ausgegraute Fragen koennen nochmal gewaehlt werden, um sie einem anderen
-Kandidaten gutzuschreiben.
+Bedienung:
 
-Z im hauptmenue, um den soundd zu resetten.
+Startupscreen:
+Player haut auf Knopf, Namen eingeben, enter. naechster. Am schluss 
+Start waehlen
 
+im Boardscreen:
+hjkl oder Cursorkeys zum rumlaufen
+Space, Enter zum auswaehlen
+Z um den soundd zu resetten.
+Q fuer quit
+F fuer Final-screen
+r fuer Zufallsgenerator
+E fuer Edit points
+
+double-jeopardy:
+up-down (jk) fuer punkte, right-left (hl) fuer player
+
+Frage:
+0: keiner richtig
+q: zurueckstellen
+(Hack: 1-4: 1-4 richtig, Shift1-Shift4: 1-4 Falsch)
+
+Edit:
+Up-Down (jk) auswahl.
+d: punkte Loeschen
++/-: Frage Richtig/Falsch
+0-4: Player n waehlen
+Right-Left: double-jeopardy punkte edit.
+q: verlassen
 
 Zum Betrieb: 
-esd starten
 soundd starten
 Seriell connecten
 Seriell 19200 -crtscts

@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.14 2004/12/25 16:03:29 sec Exp sec $;
+	q$Id: beopardy,v 1.15 2004/12/25 16:46:33 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -273,12 +273,12 @@ my @points;
 
 # Here starts the Tk part...
 #my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--40-*-*-*-*-*-iso8859-1');
-my $qfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-40-*-*-*-*-*-ascii-*');
+my $qfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-50-*-*-*-*-*-ascii-*');
 print "Question-Font:\n$qfont\n" if ($debug);
 #my $qsfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
 
 #my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
-my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-25-*-*-*-*-*-iso8859-1');
+my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-45-*-*-*-*-*-iso8859-1');
 print "Title-Font:\n$tfont\n" if($debug);
 
 $tl->configure(-height => $height, -width => $width);
@@ -440,7 +440,9 @@ if($splash){ # Splash-Screen
 	$dlg->overrideredirect(1);
 	my $q=$dlg->Label(qw/-relief raised -width 80/)->pack;
 
+	$dlg->bind('<M>',sub{
 	snd_play("start");
+			});
 	$i= $q->Pixmap("beopardy",-file => "img/beopardy.xpm");
 
 	if(defined($i)){
@@ -651,9 +653,14 @@ sub selectQuest{
 			&snd_play($fnam);
 			$snd_save=$fnam;
 		};
-		if($txt=~s/^\[(\w+):.*?\]\s*//){
+		if($txt=~s/^\[snd:.*?\]\s*//){
 			if(!$txt){
 				$txt=_("Zuhören...");
+			};
+		};
+		if($txt=~s/^\[img:.*?\]\s*//){
+			if(!$txt){
+				$txt=_("[ERR:Noimg]");
 			};
 		};
 		$question = $tl->Label(
@@ -670,6 +677,7 @@ sub selectQuest{
 
 	$tl->focusForce if ($force);
 
+	$tl->bind('<S>',sub{&snd_stop()});
 	$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
 
 	$tl->waitVisibility; # To fix stacking order

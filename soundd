@@ -1,5 +1,5 @@
 #!/usr/bin/perl -w
-# $Id: soundd,v 1.1 2002/12/23 15:43:25 sec Exp sec $
+# $Id: soundd,v 1.2 2003/12/31 23:29:10 sec Exp sec $
 
 use strict;
 use POSIX;
@@ -12,7 +12,7 @@ my $port = 32001;
 
 my %trans = (
 		"think" => "snd/thinktheme-new-short.wav",
-#		"start" => "snd/TV Theme - Game Shows - Jeopardy!.mp3",
+		"start" => "snd/TV Theme - Game Shows - Jeopardy!.mp3",
 		"f1" => "/home/sec/mp3/kinderlieder - wicki.mp3",
 		"f2" => "/home/sec/mp3/Alice im Wunderland 1981.mp3",
 	"b5" => "snd/b5.mp3",
@@ -175,7 +175,11 @@ sub session_run {
 	  $prg="/usr/local/bin/mplayer -quiet";
   }elsif($command=~/\.mp3/){
 	  $prg="/usr/local/bin/mpg123";
-	  $prg="/home/sec/bin/mpg123sane";
+#	  $prg="/home/sec/bin/mpg123sane";
+  }elsif($command=~/\.mplayer/){
+	  $prg="/usr/local/bin/mplayer -quiet -vo null";
+  }elsif($command=~/\.asf/){
+	  $prg="/usr/local/bin/mplayer -quiet -vo null";
   }else{
 	  print STDERR "Don't know how to handle $command\n";
 	  return;
