@@ -50,7 +50,7 @@ my %ln = (
 sub _ {
 	my $key=shift;
 
-	return $key; # Deutsch-Mode.
+#	return $key; # Deutsch-Mode.
 
 	if (defined ($ln{$key})){
 		return $ln{$key};
@@ -273,7 +273,7 @@ my @points;
 
 # Here starts the Tk part...
 #my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--40-*-*-*-*-*-iso8859-1');
-my $qfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-50-*-*-*-*-*-ascii-*');
+my $qfont=$tl->X11Font('-monotype-arial-medium-r-*-*-50-*-*-*-*-*-ascii-*');
 print "Question-Font:\n$qfont\n" if ($debug);
 #my $qsfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
 
@@ -1257,7 +1257,7 @@ sub randomply{
 	my $dlg=$wid->Toplevel;
 	$dlg->overrideredirect(1);
 
-	my $ply=int(rand($#players-1))+1;
+	my $ply=int(rand($#players))+1;
 	$global_dbl_ply=$ply;
 
 	my $q=$dlg->Button(
