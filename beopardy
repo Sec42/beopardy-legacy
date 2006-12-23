@@ -278,8 +278,16 @@ print "Question-Font:\n$qfont\n" if ($debug);
 #my $qsfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
 
 #my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
-my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-45-*-*-*-*-*-iso8859-1');
+#my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-45-*-*-*-*-*-iso8859-1');
+my $tfont=$tl->X11Font('-monotype-times new roman-medium-r-*-*-60-*-*-*-*-*-iso8859-1');
 print "Title-Font:\n$tfont\n" if($debug);
+
+my $sfont=$tl->X11Font('-monotype-courier new-medium-r-*-*-20-*-*-*-*-*-iso8859-1');
+print "Small-Font:\n$sfont\n" if($debug);
+
+unless ($qfont and $tfont and  $sfont ){
+	die "One or more fonts failed.\n";
+};
 
 $tl->configure(-height => $height, -width => $width);
 $tl->resizable(0,0);
@@ -320,6 +328,7 @@ for my $cat (0..$#Cat){
 	$button[$cat][0] = $frame[$cat]->Label(
 			-width	=> $catwidth,
 			-text	=> $Cat[$cat],
+			-font	=> $sfont,
 	)->pack(-fill	=> 'both');
 
 	for my $q (1..$q) {
@@ -339,7 +348,8 @@ for my $cat (0..$#Cat){
 		$button[$cat][$q]->bind('<l>',[\&moveCrsr,$cat+1,$q  ]);
 		$button[$cat][$q]->bind('<E>',[\&edit_pts,$cat  ,$q  ]);
 		$button[$cat][$q]->bind('<F>',[\&finish]);
-		$button[$cat][$q]->bind('<r>',[\&randomply]);
+		$button[$cat][$q]->bind('<R>',[\&randomply]);
+		$button[$cat][$q]->bind('<r>',[\&random_ray]);
 #		$button[$cat][$q]->bind('<FocusIn>',sub{
 #				$button[$cat][$q]->configure(-border=>10)});
 #		$button[$cat][$q]->bind('<FocusOut>',sub{
@@ -379,6 +389,7 @@ for (1..$#players){
 	$pframes[$_]=$pborder[$_]->Label( -relief=>'ridge')->pack( -side=>'left');
 	$pnames[$_] =$pframes[$_]->Label(
 			-width		=>$namewidth,
+			-font		=> $sfont,
 			-anchor		=>'w',
 			-textvar	=> \$players[$_],
 			-background	=> $colors[$_],
@@ -386,6 +397,7 @@ for (1..$#players){
 	)->pack;
 	$pscores[$_]=$pframes[$_]->Label(
 			-textvar	=> \$points[$_],
+			-font		=> $sfont,
 			-anchor		=>'e',
 	)->pack(-fill=>'x');
 };
@@ -455,7 +467,10 @@ if($splash){ # Splash-Screen
 	$splash_frame=$f;
 	my $row=0;
 	foreach (1..$#players) {
-		my $e = $f->Entry(qw/-relief sunken -width 40/);
+#		my $e = $f->Entry(qw/-relief sunken -width 40/);
+		my $e = $f->Entry(-relief	=> "sunken",
+						-font	=> $sfont,
+			   			-width	=> 30);
 		$e->insert(0,$players[$_]);
 		if($tty){
 			$e->bind('<Return>',[\&ser_reset,\&ser_PlyEn]);
@@ -468,6 +483,7 @@ if($splash){ # Splash-Screen
 			-width		=> $namewidth,
 			-background	=> $colors[$_],
 			-foreground	=> "white",
+			-font		=> $sfont,
 			-anchor 	=> 'e', -justify => 'right');
 		Tk::grid( $l, -row => $row, -column => 0, -sticky => 'e');
 		Tk::grid( $e, -row => $row++, -column => 1,-sticky => 'ew');
@@ -1076,6 +1092,7 @@ sub edit_pts {
 #		print "$sgn $ply $dbl\n";
 		$ebtn[$_]=$ich->Button(
 				-text		=> "$players[$ply] $sgn [$dbl]",
+				-font		=> $sfont,
 				-command	=> sub{ ; },
 				-background	=> $colors[$ply],
 				-foreground	=> "white",
@@ -1084,6 +1101,7 @@ sub edit_pts {
 
 	my $br=$ich->Button(
 			-text		=> 'Use: 0-4 +-d and Left-Right.',
+			-font		=> $sfont,
 			-command	=> sub{
 							$ichtl->destroy;
 							updBox($widget,$c,$f);
@@ -1172,25 +1190,27 @@ sub updBox{
 		pop@{$log[$c][$f]};
 	};
 
+	my $nothing=1;
 	for(@{$log[$c][$f]}){
 		my ($sgn,$ply,$dbl)=@{$_};
 		next if($sgn==0);
 		$pl.="\n"if($pl);
 		$pl.=($sgn==1?"+":"-").$players[$ply].($dbl?"[d]":"");
+		$nothing=0 if($sgn!=0);
 		if($sgn>0 && $ply>0){
 			$col=$colors[$ply];
 		}
 	}
 
 	$wid->configure(
-			-text				=> $pl,
-			-relief				=> "flat",
+			-text				=> $nothing?"<undef>":$pl,
+			-relief				=> $nothing?"raised":"flat",
 			-foreground			=>'grey',
 			-activeforeground	=>'grey',
 			-height				=> 0,
 			-width				=> 0,
-			-background			=> $col,
-			-font				=> "fixed",
+			-background			=> $nothing?"#d0d0d0":$col,
+			-font				=> $sfont,
 	);
 }
 
@@ -1218,7 +1238,7 @@ sub finish{
 	foreach (1..$#players) {
 		my $e = $f->Label(qw/-relief sunken/);
 		$e->configure(-text => $points[$win[$_]]);
-		$e->configure(-font => $qfont) if ($_ == 1);
+		$e->configure(-font => ($_==1)?$qfont:$sfont);
 
 		my $l = $f->Label(-text => "$players[$win[$_]]", 
 			-width		=> $namewidth,
@@ -1234,7 +1254,7 @@ sub finish{
 	}
 	$dlgbtn=$q->Button(
 			-text	=> "bye",
-#			-font	=> $qfont,
+			-font	=> $sfont,
 #			-width	=> 30,
 #			-height	=> 2,
 			-command	=> sub {&snd_stop;&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$dlg->destroy; },
@@ -1249,6 +1269,7 @@ sub finish{
 	$dlg->raise;
 	$dlg->grab;
 	$dlg->focusForce;
+	$dlgbtn->focus;
 	$tl->lower($dlg);
 };
 
@@ -1273,6 +1294,32 @@ sub randomply{
 # Repositioning looks stupid.
 #	$dlg->idletasks;
 #	$dlg->geometry(sprintf "+%d+%d",($dlg->screenwidth-$dlg->width)/2,($dlg->screenheight-$dlg->height)/2);
+	$dlg->geometry(sprintf "+%d+%d",($dlg->screenwidth-100)/2,($dlg->screenheight-40)/2);
+
+	$dlg->raise;
+	$dlg->grab if ($force);
+	$dlg->focusForce if($force);
+	$q->focus;
+};
+
+sub random_ray{
+	my ($wid)=@_;
+	my $dlg=$wid->Toplevel;
+	$dlg->overrideredirect(1);
+
+	my $ply=int(rand($#players))+1;
+	$global_dbl_ply=$ply;
+
+	my $q=$dlg->Button(
+			-relief		=> "raised",
+			-border		=> 5,
+#			-background	=> $colors[$ply],
+			-foreground	=> "white",
+			-font       => $qfont,
+			-text		=> "Hey, ray!",
+			-command	=> sub {$wid->focusForce if ($force);$dlg->destroy},
+			)->pack();
+
 	$dlg->geometry(sprintf "+%d+%d",($dlg->screenwidth-100)/2,($dlg->screenheight-40)/2);
 
 	$dlg->raise;
