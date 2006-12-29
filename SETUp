@@ -1,0 +1,8 @@
+kldload /boot/kernel/uplcom.ko
+echo connect serial
+read d
+echo init serial
+sh init_ser
+
+echo Now Start soundd and then jeopardy
+

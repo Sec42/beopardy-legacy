@@ -6,7 +6,7 @@
 # (c) by Stefan `Sec` Zehl <sec@42.org>
 
 use constant beopardy =>
-	q$Id: beopardy,v 1.15 2004/12/25 16:46:33 sec Exp sec $;
+	q$Id: beopardy,v 1.16 2006/12/23 16:09:21 sec Exp sec $;
 
 use strict;
 use Tk;
@@ -16,6 +16,7 @@ use Socket;
 use FileHandle;
 use Getopt::Std;
 use IO::Handle;
+use Encode;
 
 # Global options. Set via getopt.
 my $debug=0;
@@ -155,7 +156,7 @@ if ($tty){
 		print "connection from $name [", inet_ntoa($iaddr), "] at port $iport\n";
 	}else{
 		# Be sure to set device to -crtscts 19200
-		open(Client,"+>/dev/cuaa0") || die "open: $!";
+		open(Client,"+>/dev/cuaU0") || die "open: $!";
 	};
 	print "done.\n";
 	autoflush Client;
@@ -273,9 +274,9 @@ my @points;
 
 # Here starts the Tk part...
 #my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--40-*-*-*-*-*-iso8859-1');
-my $qfont=$tl->X11Font('-monotype-arial-medium-r-*-*-50-*-*-*-*-*-ascii-*');
+#my $qfont=$tl->X11Font('-monotype-arial-medium-r-*-*-50-*-*-*-*-*-iso8859-*');
+my $qfont=$tl->X11Font('-monotype-arial-medium-r-*-*-50-*-*-*-*-*-iso8859-1');
 print "Question-Font:\n$qfont\n" if ($debug);
-#my $qsfont=$tl->X11Font('-webfonts-arial-medium-r-*-*-35-*-*-*-*-*-ascii-*');
 
 #my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
 #my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-45-*-*-*-*-*-iso8859-1');
@@ -284,6 +285,12 @@ print "Title-Font:\n$tfont\n" if($debug);
 
 my $sfont=$tl->X11Font('-monotype-courier new-medium-r-*-*-20-*-*-*-*-*-iso8859-1');
 print "Small-Font:\n$sfont\n" if($debug);
+
+my $fixedfont=$tl->X11Font('-monotype-courier new-medium-r-*-*-20-*-*-*-*-*-iso8859-1');
+print "Fixed-Font:\n$fixedfont\n" if($debug);
+
+my $utf8font=$tl->X11Font('-jis-*-medium-r-*-*-20-*-*-*-*-*-iso8859-1');
+print "UTF8-Font:\n$utf8font\n" if($debug);
 
 unless ($qfont and $tfont and  $sfont ){
 	die "One or more fonts failed.\n";
@@ -541,13 +548,16 @@ sub ply_focus {
 			my $row=$key-1;
 			$players[$key]="New Player $key";
 			$points[$key]=0;
-			my $e = $f->Entry(qw/-relief sunken -width 40/);
+			my $e = $f->Entry(-relief	=> "sunken",
+						-font	=> $sfont,
+			   			-width	=> 30);
 			$e->insert(0,$players[$key]);
 			$e->bind('<Return>',[\&ser_reset,\&ser_PlyEn]);
 			$e->bind('<FocusOut>',[\&set_ply,$key]);
 
 			my $l = $f->Label(-text => "Player $key", 
 					-width		=> $namewidth,
+					-font		=> $sfont,
 					-background	=> $colors[$key],
 					-foreground	=> "white",
 					-anchor 	=> 'e', -justify => 'right');
@@ -664,6 +674,13 @@ sub selectQuest{
 		);
 	}else{
 		my $txt=$jdata{$Cat[$c]}[$f];
+		my $magicfont=$qfont;
+	if ($txt =~ s/^\[fixed\]//){
+		$magicfont=$fixedfont;
+	};
+	if ($txt =~ s/^\[utf8\]//){
+		$txt=Encode::decode_utf8($txt);
+	};
 		if(defined($fnam)&&($typ eq "snd")){
 			if(!$soundd){$txt.="\n[ERR:Nosound]"};
 			&snd_play($fnam);
@@ -681,7 +698,7 @@ sub selectQuest{
 		};
 		$question = $tl->Label(
 			-text	=> $txt,
-			-font	=> $qfont,
+			-font	=> $magicfont,
 			-justify	=> "left",
 		);
 	};
