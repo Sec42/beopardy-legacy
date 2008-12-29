@@ -289,8 +289,16 @@ print "Small-Font:\n$sfont\n" if($debug);
 my $fixedfont=$tl->X11Font('-monotype-courier new-medium-r-*-*-20-*-*-*-*-*-iso8859-1');
 print "Fixed-Font:\n$fixedfont\n" if($debug);
 
-my $utf8font=$tl->X11Font('-jis-*-medium-r-*-*-20-*-*-*-*-*-iso8859-1');
+#my $utf8font=$tl->X11Font('-jis-*-medium-r-*-*-20-*-*-*-*-*-iso8859-1');
+#my $utf8font=$tl->X11Font('-monotype-courier new-medium-r-*-*-80-*-*-*-*-*-iso10646-1');
+my $utf8font=$tl->X11Font('-sec-sans-*-*-*-*-96-*-*-*-*-*-*-*');
 print "UTF8-Font:\n$utf8font\n" if($debug);
+
+my $secondfont=$tl->X11Font('-sec-jis-*-*-*-*-96-*-*-*-*-*-*-*');
+print "Second-Font:\n$secondfont\n" if($debug);
+
+my $kofont=$tl->X11Font('-sec-ko-*-*-*-*-96-*-*-*-*-*-*-*');
+print "ko-Font:\n$kofont\n" if($debug);
 
 unless ($qfont and $tfont and  $sfont ){
 	die "One or more fonts failed.\n";
@@ -675,11 +683,21 @@ sub selectQuest{
 	}else{
 		my $txt=$jdata{$Cat[$c]}[$f];
 		my $magicfont=$qfont;
+
 	if ($txt =~ s/^\[fixed\]//){
 		$magicfont=$fixedfont;
 	};
 	if ($txt =~ s/^\[utf8\]//){
 		$txt=Encode::decode_utf8($txt);
+		$magicfont=$utf8font;
+	};
+	if ($txt =~ s/^\[sf\]//){
+		$txt=Encode::decode_utf8($txt);
+		$magicfont=$secondfont;
+	};
+	if ($txt =~ s/^\[ko\]//){
+		$txt=Encode::decode_utf8($txt);
+		$magicfont=$kofont;
 	};
 		if(defined($fnam)&&($typ eq "snd")){
 			if(!$soundd){$txt.="\n[ERR:Nosound]"};
