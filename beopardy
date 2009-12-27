@@ -285,10 +285,11 @@ print "Question-Font:\n$qfont\n" if ($debug);
 
 #my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
 #my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-45-*-*-*-*-*-iso8859-1');
-my $tfont=$tl->X11Font('-*-freesans-medium-r-*-*-*-*-*-*-*-*-iso8859-*');
+my $tfont=$tl->X11Font('-*-freesans-medium-r-*-*-40-*-*-*-*-*-iso8859-*');
 print "Title-Font:\n$tfont\n" if($debug);
 
-my $sfont=$tl->X11Font('-*-freemono-medium-r-*-*-*-*-*-*-*-*-iso8859-*');
+#my $sfont=$tl->X11Font('-*-freemono-medium-r-*-*-10-*-*-*-*-*-iso8859-*');
+my $sfont=$tl->X11Font('-*-freesans-medium-r-*-*-20-*-*-*-*-*-iso8859-*');
 print "Small-Font:\n$sfont\n" if($debug);
 
 my $fixedfont=$tl->X11Font('-*-freemono-medium-r-*-*-*-*-*-*-*-*-iso8859-*');
