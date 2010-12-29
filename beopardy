@@ -25,6 +25,7 @@ my $force=0;					# move focus for kbd-mode?
 my $tty=0;						# use tty/serial input?
 my $splash=0;					# Display a splashscreen?
 my $soundd=0;					# Use Soundd-output?
+my $mood=0;						# Publish mood?
 my $socket=0;					# tty emulated by tcp socket?
 my $geometry=0;					# How big should I be?
 my $readfile;					# Should I read from a file?
@@ -51,7 +52,7 @@ my %ln = (
 sub _ {
 	my $key=shift;
 
-#	return $key; # Deutsch-Mode.
+	return $key; # Deutsch-Mode.
 
 	if (defined ($ln{$key})){
 		return $ln{$key};
@@ -61,7 +62,7 @@ sub _ {
 };
 
 my %opt;
-getopts('ydoftsg:r:hwb', \%opt);
+getopts('ydoftsg:r:hwbm', \%opt);
 
 # Possible screen sizes
 my %screen=( 320 => 200,
@@ -87,6 +88,7 @@ beopardy -options Gamefile Player1 Player2 ...
 -r <file>	Read saved game from File.
 -w		Save game progress for reading with -r.
 -y		Contact soundd at localhost 32001
+-m		Moodlamp support. Works via soundd (requires -y)
 -g <size>	geometry. Select window size.
 		0: fullscreen (default)
 EOF
@@ -106,6 +108,11 @@ $socket=1	if (defined $opt{s});
 $savefile=1	if (defined $opt{w});
 $splash=1	if (defined $opt{b});
 $soundd=1	if (defined $opt{y});
+$mood=1		if (defined $opt{m});
+
+if($mood && !$soundd){
+	die "Mood support requires soundd!";
+};
 
 if($opt{r}){ # Read savefile
 	if ( -f $opt{r} ){
@@ -118,6 +125,7 @@ if ($tty){$splash=1};	# tty requires splash.
 
 my $tl = MainWindow -> new -> toplevel;
 $tl->appname(beopardy);
+$tl->bind('<M>',sub{ snd_play("start"); });
 my ($width,$height)=($tl->screenwidth,$tl->screenheight);	# Size of game field.
 
 if (defined $opt{g}){
@@ -180,6 +188,7 @@ if($soundd){
 		autoflush Soundd;
 };
 &snd_stop(0); # Just to make sure, and to install snd_eat.
+&mood("boot");
 
 print "Reading questions....\n";
 my %jdata;
@@ -513,7 +522,7 @@ if($splash){ # Splash-Screen
 			-font	=> $qfont,
 #			-width	=> 30,
 			-height	=> 2,
-			-command	=> sub {$splash=0;&snd_stop;&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);$dlg->destroy;
+			-command	=> sub {$splash=0;&snd_stop;&ser_reset if($tty);$button[0][1]->focus; $button[0][1]->focusForce if ($force);&mood("start");$dlg->destroy;
 			print SAV "[ply] ",join("/",@players),"\n";
 			},
 	)->pack(
@@ -550,10 +559,12 @@ sub ser_PlyEn {
 	}else{
 		die "ser_en: $_[0]\n";
 	};
+	&mood("setup 0");
 };
 
 sub ply_focus {
 	my ($crap, $key)=@_;
+	&mood("setup $key");
 	if ($key>$#players){
 		if($tty && ($key==($#players+1))){
 			my $f=$splash_frame;
@@ -723,9 +734,11 @@ sub selectQuest{
 	$tl->focusForce if ($force);
 
 	$tl->bind('<S>',sub{&snd_stop()});
+	$tl->bind('<R>',sub{&snd_resume()});
 	$tl->bind('<Key>',[\&answerQuest,$c,$f,Ev('A')]);
 
 	$tl->waitVisibility; # To fix stacking order
+	&mood("question");
 	if($global_is_dbl){
 		$tl->afterIdle(sub {&ser_answerQuest($tl,$c,$f) if ($tty);});
 	}else{
@@ -744,6 +757,7 @@ sub ser_answerQuest {
 	}else{
 		$key=<Client>;
 	};
+	&mood("player $key");
 	print "SER<: <$key>\n" if($debug);
 
 	&snd_stop if($snd_save);
@@ -789,6 +803,7 @@ sub ser_answerQuest {
 			-command	=> sub{$ich->destroy;
 							  &ser_reset;
 #							  &snd_stop;
+							  &mood("question");
 							  &snd_resume;
 							  $crap->focusForce if ($force);
 							  &ser_en($crap,$c,$f)},
@@ -824,6 +839,12 @@ sub ser_dis{
 	$tl->fileevent(\*Client,'readable',[\&ser_noinp]);
 };
 
+sub mood{
+	return if (!$soundd);
+	my($sound)=(shift);
+	print Soundd "M $sound\r\n";
+	Soundd->flush();
+};
 sub snd_play{
 	return if (!$soundd);
 	my($sound,$what)=(shift,shift);
@@ -864,6 +885,7 @@ sub answerQuest{
 	my $sgn=1;
 	if(lc($key) =~ "q"){
 		&snd_stop(0);
+		&mood("board");
 		$crap->destroy;
 		&ser_dis if ($tty);  # "input nach 'q' auf frage" fix.
 		$button[$c][$f]->focusForce if ($force);
@@ -883,6 +905,9 @@ sub answerQuest{
 		if ($key<0) {
 			$sgn=-$sgn;
 			$key=-$key;
+			&mood("wrong");
+		}else{
+			&mood("right");
 		};
 		if ($key <= $#players){
 			&updPlayfield($c,$f,$key,$sgn);
@@ -1075,6 +1100,7 @@ sub enterdbl {
 	$br->bind('<Left>',sub{&dblplychg($ply,-1)});
 	$br->bind('<Up>',sub{&amt_chg(+50)});
 	$br->bind('<Down>',sub{&amt_chg(-50)});
+	&mood("double $global_dbl_ply");
 
 	$br->focus;
 	$br->focusForce if($force);
@@ -1093,6 +1119,7 @@ sub dblplychg{
 	$global_dbl_ply=1 if ($global_dbl_ply>$#players);
 	$ply->configure(-text => $players[$global_dbl_ply],
 			-background	=> $colors[$global_dbl_ply]);
+	&mood("double $global_dbl_ply");
 };
 
 sub edit_pts {
@@ -1249,6 +1276,7 @@ sub finish{
 	my $rframe;
 	my @win=sort {$points[$b]<=>$points[$a]} (1..$#points);
 	unshift @win,"0";
+	&mood("end");
 
 #	$dlg->configure(-height => $height, -width => $width);
 #	$dlg->resizable(0,0);
