@@ -26,6 +26,7 @@ my $tty=0;						# use tty/serial input?
 my $splash=0;					# Display a splashscreen?
 my $soundd=0;					# Use Soundd-output?
 my $mood=0;						# Publish mood?
+my $vote=0;						# show r0ketvote
 my $socket=0;					# tty emulated by tcp socket?
 my $geometry=0;					# How big should I be?
 my $readfile;					# Should I read from a file?
@@ -62,7 +63,7 @@ sub _ {
 };
 
 my %opt;
-getopts('ydoftsg:r:hwbm', \%opt);
+getopts('vydoftsg:r:hwbm', \%opt);
 
 # Possible screen sizes
 my %screen=( 320 => 200,
@@ -109,6 +110,7 @@ $savefile=1	if (defined $opt{w});
 $splash=1	if (defined $opt{b});
 $soundd=1	if (defined $opt{y});
 $mood=1		if (defined $opt{m});
+$vote=1		if (defined $opt{v});
 
 if($mood && !$soundd){
 	die "Mood support requires soundd!";
@@ -146,6 +148,19 @@ my $q=5;						# Wieviele Fragen/Kategorie?
 my $qwidth=35;					# Width of a question.
 my $catwidth =10;				# Width of categories.
 my $namewidth=10;				# Width of player names
+
+if($vote){
+	print "Listening on :4444 for vote\n";
+	my $port = 4444;
+	my $proto = getprotobyname('tcp');
+	socket(VClient, PF_INET, SOCK_STREAM, $proto)	|| die "socket: $!";
+	setsockopt(VClient, SOL_SOCKET, SO_REUSEADDR, pack("l", 1))
+							|| die "setsockopt: $!";
+	my $iaddr= inet_aton("10.0.0.3") 		|| die "no host: $!" ;
+	my $paddr= sockaddr_in($port, $iaddr);
+	connect(VClient, $paddr)			|| die "bind: $!" ;
+	print "Vote connected.\n";
+};
 
 if ($tty){
 	print "Opening tty\n";
@@ -388,6 +403,30 @@ for my $cat (0..$#Cat){
 		$button[$cat][$q]->bind('<Right>',[\&moveCrsr,$cat+1,$q  ]);
 	};
 };
+my $voteframe;
+my $votec;
+my $votec2;
+my $votebar;
+my $votebar2;
+if($vote){
+	$voteframe=$bframe->Frame(
+			-width => 200,
+			-height => 1,
+		)->pack(
+			-side	=>'left',
+			-fill	=>'both',
+			-expand	=> 0,
+		       );
+	$votec=$voteframe->Canvas(-relief=>"sunken", 
+			-background=>"darkgreen",
+			-width => 30,
+			-height => 310
+			)->pack(
+			-expand => 1
+			);
+	$votebar=$votec->create('rectangle',0,0,0,0,-fill => "darkred",-outline => "darkred");
+	print "Voteid: $votebar\n";
+};
 $button[0][1]->focus;
 #$button[0][1]->focusForce if ($force);
 
@@ -467,6 +506,9 @@ my $dlgbtn;
 my $splash_frame;
 $tl->waitVisibility; # To fix stacking order
 
+if($vote){
+	&vote_enable;
+};
 
 if($splash){ # Splash-Screen
 	my $dlg=$tl->Toplevel;
@@ -549,6 +591,32 @@ sub set_ply {
 	my ($crap,$key)=@_;
 	print "set_ply $key\n" if($debug);
 	$players[$key]=$crap->get;
+};
+
+sub vote_set {
+	my($val)=@_;
+	if($votebar2){
+		print "$votebar2 $votec2\n";
+		$votec2->coords($votebar2,0,$val,100,$val+10);
+	};
+	$votec->coords($votebar,0,$val,100,$val+10);
+};
+sub vote_read {
+	if(eof(VClient)){
+		$tl->fileevent(\*VClient,'readable',"");
+		$votec->configure(-background => "grey");
+		return;
+	};
+	my $vote=<VClient>;
+	print "VOTE<: <$vote>\n" if($debug);
+	$vote=~s/\r?\n$//;
+	$vote=$vote+0;
+	&vote_set($vote);
+};
+
+sub vote_enable {
+	print "Venable\n";
+	$tl->fileevent(\*VClient,'readable',[\&vote_read,@_]);
 };
 
 sub ser_PlyEn {
@@ -665,6 +733,15 @@ sub selectQuest{
 			-relief	=> 'ridge',
 			-font	=> $tfont,
 	) -> pack(-fill	=> 'x');
+	$votec2=$tl->Canvas(-relief=>"sunken", 
+			-background=>"darkgreen",
+			-width => 30,
+			-height => 310
+			)->pack(
+			-side	=>'right',
+			);
+	$votebar2=$votec2->create('rectangle',0,0,0,0,-fill => "darkred",-outline => "darkred");
+
 
 # XXX Pixmap-Hack. *funfunfun*
 
@@ -886,6 +963,7 @@ sub answerQuest{
 	if(lc($key) =~ "q"){
 		&snd_stop(0);
 		&mood("board");
+		$votebar2=undef;
 		$crap->destroy;
 		&ser_dis if ($tty);  # "input nach 'q' auf frage" fix.
 		$button[$c][$f]->focusForce if ($force);
@@ -911,7 +989,10 @@ sub answerQuest{
 		};
 		if ($key <= $#players){
 			&updPlayfield($c,$f,$key,$sgn);
-			$crap->destroy if ($sgn>0);
+			if ($sgn>0){
+				$crap->destroy ;
+				$votebar2=undef;
+			};
 			&ser_reset if ($tty);
 			$button[$c][$f]->focusForce if ($force && ($sgn>0));
 #			&snd_stop(0);
