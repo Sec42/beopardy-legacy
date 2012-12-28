@@ -287,24 +287,19 @@ unshift @players,"Nobody";
 my @points;
 
 # Here starts the Tk part...
-#my $qfont=$tl->X11Font('-*-new century schoolbook-medium-r-*--40-*-*-*-*-*-iso8859-1');
-#my $qfont=$tl->X11Font('-monotype-arial-medium-r-*-*-50-*-*-*-*-*-iso8859-*');
-my $qfont=$tl->X11Font('-*-freesans-medium-r-*-*-50-*-*-*-*-*-iso8859-*');
+my $qfont=$tl->X11Font('-*-arial-medium-r-*-*-60-*-*-*-*-*-iso8859-*');
 print "Question-Font:\n$qfont\n" if ($debug);
 
-#my $tfont=$tl->X11Font('-*-helvetica-medium-r-*--30-*-*-*-*-*-iso8859-1');
-#my $tfont=$tl->X11Font('-bitstream-*-medium-r-*-*-45-*-*-*-*-*-iso8859-1');
-my $tfont=$tl->X11Font('-*-freesans-medium-r-*-*-40-*-*-*-*-*-iso8859-*');
+my $tfont=$tl->X11Font('-*-verdana-medium-r-*-*-50-*-*-*-*-*-iso8859-*');
 print "Title-Font:\n$tfont\n" if($debug);
 
-#my $sfont=$tl->X11Font('-*-freemono-medium-r-*-*-10-*-*-*-*-*-iso8859-*');
-my $sfont=$tl->X11Font('-*-freesans-medium-r-*-*-20-*-*-*-*-*-iso8859-*');
+my $sfont=$tl->X11Font('-*-arial-medium-r-*-*-25-*-*-*-*-*-iso8859-*');
 print "Small-Font:\n$sfont\n" if($debug);
 
-my $fixedfont=$tl->X11Font('-*-freemono-medium-r-*-*-*-*-*-*-*-*-iso8859-*');
+my $fixedfont=$tl->X11Font('-*-courier 10 pitch-medium-r-*-*-70-*-*-*-*-*-iso8859-*');
 print "Fixed-Font:\n$fixedfont\n" if($debug);
 
-my $utf8font=$tl->X11Font('-*-freemono-medium-r-*-*-*-*-*-*-*-*-iso8859-*');
+my $utf8font=$tl->X11Font('-*-arial-medium-r-*-*-30-*-*-*-*-*-iso8859-*');
 print "UTF8-Font:\n$utf8font\n" if($debug);
 
 unless ($qfont and $tfont and  $sfont ){
@@ -314,9 +309,11 @@ unless ($qfont and $tfont and  $sfont ){
 $tl->configure(-height => $height, -width => $width);
 $tl->resizable(0,0);
 $tl->packPropagate(0);	# Keep the size.
-$tl->overrideredirect(1) if ($override);
+#$tl->overrideredirect(1) if ($override);
+$tl->focus if ($override);
 #$tl->fullscreen(1) if ($override);
-#$tl->attributes(-topmost => 'yes') if ($override);
+$tl->attributes(-topmost => 'yes') if ($override);
+$tl->attributes(-fullscreen => 'yes') if ($override);
 #$tl->highlightthickness(0) if ($override);
 #$tl->grabGlobal() if ($override);
 
