@@ -19,6 +19,7 @@ use Getopt::Std;
 use IO::Handle;
 use Encode;
 use open qw( :encoding(UTF-8) :std ); # every opened file is UTF-8
+use utf8;                             # this source code is UTF-8
 
 # Global options. Set via getopt.
 my $debug=0;
@@ -48,7 +49,7 @@ my %ln = (
 		"ist etwas unruhig"	=> "seems a bit nervous",
 		"Knopf loesen"		=> "release your button",
 		"nochmal"			=> "try again",
-		"Zuhören..."		=> "listen...",
+		"ZuhÃ¶ren..."		=> "listen...",
 		);
 
 sub _ {
@@ -710,7 +711,7 @@ sub selectQuest{
 		};
 		if($txt=~s/^\[snd:.*?\]\s*//){
 			if(!$txt){
-				$txt=_("Zuhören...");
+				$txt=_("ZuhÃ¶ren...");
 			};
 		};
 		if($txt=~s/^\[img:.*?\]\s*//){
@@ -894,7 +895,7 @@ sub answerQuest{
 	&snd_stop() if ($key eq "0"); # XXX
 	my $pos;
 	$key=-$pos if (($pos=index('0!"#$%&/()',$key))>0);
-	$key=-3  if($key eq '§');
+	$key=-3  if($key eq 'Â§');
 	$key="0" if($key eq "`"); # Be nice on ami-kbd
 	$key="0" if($key eq "^"); # Be nice on german-kbd
 
