@@ -185,18 +185,18 @@ sub session_run {
   $command=$trans{$command}if(defined $trans{$command});
   $command="snd/".$command;
 
-  if($command=~/\.wav/){
+  if($command=~/\.wav$/){
 	  $prg="/usr/local/bin/playwave";
 	  $prg="/usr/local/bin/esdplay";
 	  $prg="/usr/bin/mplayer -really-quiet";
-  }elsif($command=~/\.ogg/){
+  }elsif($command=~/\.ogg$/){
 	  $prg="/usr/bin/mplayer -really-quiet";
-  }elsif($command=~/\.mp3/){
+  }elsif($command=~/\.mp3$/){
 	  $prg="/usr/bin/mpg123";
 #	  $prg="/home/sec/bin/mpg123sane";
-  }elsif($command=~/\.mplayer/){
+  }elsif($command=~/\.mplayer$/){
 	  $prg="/usr/bin/mplayer -really-quiet -vo null";
-  }elsif($command=~/\.asf/){
+  }elsif($command=~/\.asf$/){
 	  $prg="/usr/bin/mplayer -really-quiet -vo null";
   }else{
 	  print STDERR "Don't know how to handle $command\n";
