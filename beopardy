@@ -12,6 +12,8 @@ use strict;
 use Tk;
 use Tk::X11Font;
 use Tk::Dialog;
+use Tk::JPEG;
+use Tk::PNG;
 use Socket;
 use FileHandle;
 use Getopt::Std;
@@ -674,10 +676,13 @@ sub selectQuest{
 		print "This is of $typ - \'$2\'\n";
 		if($typ eq "img"){
 			if(!defined($imgcache{$fnam})){
-				if(-f "img/".$fnam.".xpm"){
-					$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+				if(-f "img/".$fnam){
+					$imgcache{$fnam} = $tl->Photo($fnam,-file => "img/".$fnam);
+                }elsif(-f "img/".$fnam.".xpm") {
+                    # for backwards compatibility to old Jeopardy img format without file suffix
+                    $imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
 				}else{
-					print "img/".$fnam.".xpm not found\n";
+					print "img/".$fnam." not found\n";
 				};
 			};
 		};
