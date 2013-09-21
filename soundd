@@ -191,6 +191,8 @@ sub session_run {
 	  $prg="/usr/bin/mplayer -really-quiet";
   }elsif($command=~/\.ogg$/){
 	  $prg="/usr/bin/mplayer -really-quiet";
+  }elsif($command=~/\.aac$/){
+	  $prg="/usr/bin/mplayer -really-quiet";
   }elsif($command=~/\.mp3$/){
 	  $prg="/usr/bin/mpg123";
 #	  $prg="/home/sec/bin/mpg123sane";
