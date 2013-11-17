@@ -181,29 +181,30 @@ sub session_run {
   my ($kernel, $heap, $command) = @_[KERNEL, HEAP, ARG0];
   my $prg;
 
+  # extract from/duration params
+  my ($from, $duration);
+  if($command =~ s/\s([\d:]+)(?:\s([\d:]+))?$//) {
+     ($from, $duration) = ($1, $2);
+  }
 
   $command=$trans{$command}if(defined $trans{$command});
   $command="snd/".$command;
 
-  if($command=~/\.wav$/){
-	  $prg="/usr/local/bin/playwave";
-	  $prg="/usr/local/bin/esdplay";
+  if($command=~/\.(?:aac|ogg|mp3|wav)$/){
 	  $prg="/usr/bin/mplayer -really-quiet";
-  }elsif($command=~/\.ogg$/){
-	  $prg="/usr/bin/mplayer -really-quiet";
-  }elsif($command=~/\.aac$/){
-	  $prg="/usr/bin/mplayer -really-quiet";
-  }elsif($command=~/\.mp3$/){
-	  $prg="/usr/bin/mpg123";
-#	  $prg="/home/sec/bin/mpg123sane";
-  }elsif($command=~/\.mplayer$/){
-	  $prg="/usr/bin/mplayer -really-quiet -vo null";
-  }elsif($command=~/\.asf$/){
+  }elsif($command=~/\.(?:asf|mplayer)$/){
 	  $prg="/usr/bin/mplayer -really-quiet -vo null";
   }else{
 	  print STDERR "Don't know how to handle $command\n";
 	  return;
   };
+
+  if(defined $from) {
+	  $prg = "$prg -ss $from";
+  }
+  if(defined $duration) {
+	  $prg = "$prg -endpos $duration";
+  }
 
   print("Starting $prg $command\n");
 

@@ -480,8 +480,8 @@ if($splash){ # Splash-Screen
 	my $q=$dlg->Label(qw/-relief raised -width 80/)->pack;
 
 	$dlg->bind('<M>',sub{
-	snd_play("start");
-			});
+		snd_play("start");
+	});
 	$i= $q->Pixmap("beopardy",-file => "img/beopardy.xpm");
 
 	if(defined($i)){
@@ -668,32 +668,32 @@ sub selectQuest{
 
 # XXX Pixmap-Hack. *funfunfun*
 
-	my ($typ,$fnam,$param1);
+	my ($typ,$fnam,$param1,$param2);
 	$typ="";
 	print $jdata{$Cat[$c]}[$f]," <-\n" if($debug);
-	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)(?:,(\d+))?\]\s*/){
-		$typ=$1;$fnam=$2;$param1=$3;
+	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)(?:,([\d:]+))?(?:,([\d:]+))?\]/){
+		$typ=$1;$fnam=$2;$param1=$3;$param2=$4;
 		print "This is of type $typ - \'$fnam\'$param1\n";
-		if($typ eq "img"){
-			if(!defined($imgcache{$fnam})){
-				if(-f "img/".$fnam){
-					if($fnam =~ /\.gif$/ && defined $param1) {
-						$imgcache{$fnam} = $tl->Animation(-format => 'gif','-file' => $fnam);
-						$imgcache{$fnam}->start_animation($param1);
-					} else {
-						$imgcache{$fnam} = $tl->Photo($fnam,-file => $fnam);
-					}
-				}elsif(-f "img/".$fnam.".xpm") {
-					# for backwards compatibility to old Jeopardy img format without file suffix
-					$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
-				}else{
-					print "img/".$fnam." not found\n";
-				};
+	}
+	if($typ eq "img"){
+		if(!defined($imgcache{$fnam})){
+			if(-f "img/".$fnam){
+				if($fnam =~ /\.gif$/) {
+					$imgcache{$fnam} = $tl->Animation(-format => 'gif','-file' => "img/".$fnam);
+					$imgcache{$fnam}->start_animation($param1);
+				} else {
+					$imgcache{$fnam} = $tl->Photo($fnam,-file => "img/".$fnam);
+				}
+			}elsif(-f "img/".$fnam.".xpm") {
+				# for backwards compatibility to old Jeopardy img format without file suffix
+				$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
+			}else{
+				print "img/".$fnam." not found\n";
 			};
 		};
-	}
+	};
 	if ($typ ne "snd"){
-		&snd_play("think",1);
+		&snd_play("think");
 	};
 
 	$snd_save=undef;
@@ -705,15 +705,15 @@ sub selectQuest{
 	}else{
 		my $txt=$jdata{$Cat[$c]}[$f];
 		my $magicfont=$qfont;
-	if ($txt =~ s/^\[fixed\]//){
-		$magicfont=$fixedfont;
-	};
-	if ($txt =~ s/^\[utf8\]//){
-		$txt=Encode::decode_utf8($txt);
-	};
+		if ($txt =~ s/^\[fixed\]//){
+			$magicfont=$fixedfont;
+		};
+		if ($txt =~ s/^\[utf8\]//){
+			$txt=Encode::decode_utf8($txt);
+		};
 		if(defined($fnam)&&($typ eq "snd")){
 			if(!$soundd){$txt.="\n[ERR:Nosound]"};
-			&snd_play($fnam);
+			&snd_play($fnam,$param1,$param2);
 			$snd_save=$fnam;
 		};
 		if($txt=~s/^\[snd:.*?\]\s*//){
@@ -854,14 +854,17 @@ sub mood{
 };
 sub snd_play{
 	return if (!$soundd);
-	my($sound,$what)=(shift,shift);
-	print Soundd "P $sound\r\n";
+	my($sound,$from,$duration)=@_;
+	my $cmd = "P $sound";
+	if(defined $from) {
+		$cmd .= " $from";
+		if(defined $duration) {
+			$cmd .= " $duration";
+		}
+	}
+	print Soundd "$cmd\r\n";
 	Soundd->flush();
-	if($what){
-		$tl->fileevent(\*Soundd,'readable',[\&snd_color]); # DWIM!
-	}else{
-		$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
-	};
+	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
 };
 sub snd_stop{
 	return if (!$soundd);
@@ -1039,16 +1042,6 @@ sub ser_eat {
 sub snd_eat {
 	my $foo=scalar(<Soundd>);
 	print "got: ",$foo;
-};
-sub snd_color {
-	my $foo=scalar(<Soundd>);
-	print "Cgot: ",$foo;
-	if($foo=~/^E/){
-#		$cur_ser_answer[0]->configure(
-#			-background			=> "red",
-#				);
-	};
-
 };
 
 sub enterdbl {
