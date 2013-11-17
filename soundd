@@ -183,7 +183,7 @@ sub session_run {
 
   # extract from/duration params
   my ($from, $duration);
-  if($command =~ s/\s([\d:]+)(?:\s([\d:]+))?$//) {
+  if($command =~ s/\s([\d:.]+)(?:\s([\d:.]+))?$//) {
      ($from, $duration) = ($1, $2);
   }
 
