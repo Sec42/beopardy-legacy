@@ -1,0 +1,27 @@
+Beschreibung der Fileformate:
+
++Rundendefinitionen "RundeX.jg"
+
+Enthalten pro Zeile einen Kategorienamen (ohne >)
+Beliebig viele Kategorien möglich.
+
++Fragenfile "Jeopardy"
+
+Jede Kategorie beginnt mit ">Kategoriename"
+Darauf folgen 5 Zeilen mit je einer der (sichtbaren) Antworten.
+Es können beliebig viele Zeilen mit "#" am Anfang eingefügt werden. Z.B mit
+den dazugehörigen Fragen.
+
+In den Antworten gültige Sonderzeichen: "\n" für Zeilenumbruch.
+[dbl] für Double-Jeopardy-Frage
+[fixed] für den "fixed"-font (für code und ascii-graphik)
+[utf8] für Fragen im utf8-Format (für Kanjis oder andere Sonderzeichen)
+[snd:<name>] oder [img:<name>] für Sound oder Bilderfragen
+Animation: [img:<name>.gif,N] N: Dauer eines Frames in ms
+
+[NOTE] Wenn kein \n vorkommt, versucht beopardy selbst sinnvoll
+       Zeilenumbrüche einzustreuen.
+[NOTE] Bilder müssen als .xpm im img/-Verzeichniss liegen.
+
+[NOTE] Anzahl der Fragen/Kategorie ist (nur) im Source konfigurierbar.
+

@@ -677,7 +677,7 @@ sub selectQuest{
 		if($typ eq "img"){
 			if(!defined($imgcache{$fnam})){
 				if(-f "img/".$fnam){
-					if($fnam =~ /\.gif$/) {
+					if($fnam =~ /\.gif$/ && defined $param1) {
 						$imgcache{$fnam} = $tl->Animation(-format => 'gif','-file' => $fnam);
 						$imgcache{$fnam}->start_animation($param1);
 					} else {
