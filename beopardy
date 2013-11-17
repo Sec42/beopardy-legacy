@@ -12,6 +12,9 @@ use strict;
 use Tk;
 use Tk::X11Font;
 use Tk::Dialog;
+use Tk::JPEG;
+use Tk::PNG;
+use Tk::Animation;
 use Socket;
 use FileHandle;
 use Getopt::Std;
@@ -665,19 +668,26 @@ sub selectQuest{
 
 # XXX Pixmap-Hack. *funfunfun*
 
-	my ($typ,$fnam);
+	my ($typ,$fnam,$param1);
 	$typ="";
 	print $jdata{$Cat[$c]}[$f]," <-\n" if($debug);
-	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)\]\s*/){
-#		print "JA\n";
-		$typ=$1;$fnam=$2;
-		print "This is of $typ - \'$2\'\n";
+	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)(?:,(\d+))?\]\s*/){
+		$typ=$1;$fnam=$2;$param1=$3;
+		print "This is of type $typ - \'$fnam\'$param1\n";
 		if($typ eq "img"){
 			if(!defined($imgcache{$fnam})){
-				if(-f "img/".$fnam.".xpm"){
+				if(-f "img/".$fnam){
+					if($fnam =~ /\.gif$/ && defined $param1) {
+						$imgcache{$fnam} = $tl->Animation(-format => 'gif','-file' => $fnam);
+						$imgcache{$fnam}->start_animation($param1);
+					} else {
+						$imgcache{$fnam} = $tl->Photo($fnam,-file => $fnam);
+					}
+				}elsif(-f "img/".$fnam.".xpm") {
+					# for backwards compatibility to old Jeopardy img format without file suffix
 					$imgcache{$fnam} = $tl->Pixmap($fnam,-file => "img/".$fnam.".xpm");
 				}else{
-					print "img/".$fnam.".xpm not found\n";
+					print "img/".$fnam." not found\n";
 				};
 			};
 		};
@@ -690,7 +700,7 @@ sub selectQuest{
 	my $question;
 	if (defined($fnam) && defined($imgcache{$fnam})){
 		$question = $tl->Label(
-			-image	=> "$fnam",
+			-image	=> $imgcache{$fnam},
 		);
 	}else{
 		my $txt=$jdata{$Cat[$c]}[$f];
