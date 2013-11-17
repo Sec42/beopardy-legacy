@@ -630,11 +630,13 @@ MainLoop;
 # We selected a question...
 
 my %imgcache;
+my $wrong_answers; # count wrong answers, so we can close the question after last player
 
 sub selectQuest{
 	my ($otl,$c,$f)=@_;
 	print "global_question_inhibit= $global_question_inhibit\n";
 	return if $global_question_inhibit;
+	$wrong_answers = 0;
 	print "Q$f / \"$Cat[$c]\":\n$jdata{$Cat[$c]}[$f]\n";
 
 	if( $jdata{$Cat[$c]}[$f] =~ s/\s*\[dbl\]\s*// && $global_is_dbl == 0){
@@ -908,9 +910,18 @@ sub answerQuest{
 		};
 		if ($key <= $#players){
 			&updPlayfield($c,$f,$key,$sgn);
-			$crap->destroy if ($sgn>0);
+			if ($sgn>0) {
+				$crap->destroy;
+				$button[$c][$f]->focusForce if $force);
+			} elsif($sgn<0) {
+				$wrong_answers++;
+				if($wrong_answers >= $#players) {
+					# all players gave a wrong answer, close the question
+					$crap->destroy;
+					$button[$c][$f]->focusForce if ($force);
+				}
+			}
 			&ser_reset if ($tty);
-			$button[$c][$f]->focusForce if ($force && ($sgn>0));
 #			&snd_stop(0);
 			return;
 		};
