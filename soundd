@@ -181,13 +181,15 @@ sub session_run {
   my ($kernel, $heap, $command) = @_[KERNEL, HEAP, ARG0];
   my $prg;
 
+  # translate event names to full sound file names, if required
+  $command=$trans{$command}if(defined $trans{$command});
+
   # extract from/duration params
   my ($from, $duration);
-  if($command =~ s/\s([\d:.]+)(?:\s([\d:.]+))?$//) {
+  if($command =~ s/[\s,]([\d:.]+)(?:[\s,]([\d:.]+))?$//) {
      ($from, $duration) = ($1, $2);
   }
 
-  $command=$trans{$command}if(defined $trans{$command});
   $command="snd/".$command;
 
   if($command=~/\.(?:aac|ogg|mp3|wav)$/){
