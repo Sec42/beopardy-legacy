@@ -695,7 +695,7 @@ sub selectQuest{
 	my $question;
 	if (defined($fnam) && defined($imgcache{$fnam})){
 		$question = $tl->Label(
-			-image	=> "$fnam",
+			-image	=> $imgcache{$fnam},
 		);
 	}else{
 		my $txt=$jdata{$Cat[$c]}[$f];
