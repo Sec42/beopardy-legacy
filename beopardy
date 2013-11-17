@@ -757,7 +757,7 @@ sub ser_answerQuest {
 	&mood("player $key");
 	print "SER<: <$key>\n" if($debug);
 
-	&snd_stop if($snd_save);
+	&snd_stop() if($snd_save && !$global_is_dbl);
 
 	$key=~s/\r?\n$//;
 
