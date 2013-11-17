@@ -673,7 +673,7 @@ sub selectQuest{
 	print $jdata{$Cat[$c]}[$f]," <-\n" if($debug);
 	if ($jdata{$Cat[$c]}[$f] =~ /^\[(img|snd):(.*?)(?:,([\d:.]+))?(?:,([\d:.]+))?\]/){
 		$typ=$1;$fnam=$2;$param1=$3;$param2=$4;
-		print "This is of type $typ - \'$fnam\'$param1\n";
+		print "This is of type $typ - \'$fnam\' $param1 $param2\n";
 	}
 	if($typ eq "img"){
 		if(!defined($imgcache{$fnam})){
@@ -714,7 +714,7 @@ sub selectQuest{
 		if(defined($fnam)&&($typ eq "snd")){
 			if(!$soundd){$txt.="\n[ERR:Nosound]"};
 			&snd_play($fnam,$param1,$param2);
-			$snd_save=$fnam;
+			$snd_save=[$fnam,$param1,$param2];
 		};
 		if($txt=~s/^\[snd:.*?\]\s*//){
 			if(!$txt){
@@ -882,7 +882,7 @@ sub snd_zap{
 sub snd_resume{
 	return if (!$soundd);
 	if($snd_save){
-		print Soundd "P $snd_save\r\n";
+		print Soundd "P " . join(' ', grep {defined;} @$snd_save) . "\r\n";
 		Soundd->flush();
 	};
 	$tl->fileevent(\*Soundd,'readable',[\&snd_eat]);
