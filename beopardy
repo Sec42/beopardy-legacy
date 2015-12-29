@@ -373,6 +373,7 @@ for my $cat (0..$#Cat){
 		$button[$cat][$q]->bind('<E>',[\&edit_pts,$cat  ,$q  ]);
 		$button[$cat][$q]->bind('<F>',[\&finish]);
 		$button[$cat][$q]->bind('<R>',[\&randomply]);
+		$button[$cat][$q]->bind('<Y>',[\&ser_reset]);
 		$button[$cat][$q]->bind('<r>',[\&random_ray]);
 #		$button[$cat][$q]->bind('<FocusIn>',sub{
 #				$button[$cat][$q]->configure(-border=>10)});
@@ -1013,7 +1014,16 @@ sub ser_fatal{
 # Eat anything you get.
 sub ser_eat {
 	my $ref=shift;
-	my $foo=scalar(<Client>);
+	my $foo;
+
+	eval {
+		local $SIG{ALRM} = sub { die "alarm\n" }; # NB: \n required
+		alarm 2;
+		$foo="<undef>";
+		$foo=scalar(<Client>);
+		alarm 0;
+	};
+
 	print "SER<: <$foo>\n" if($debug);
 	print "got: ",$foo;
 	$foo=~s/\r?\n//;
