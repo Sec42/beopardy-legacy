@@ -1,0 +1,34 @@
+apt-get install perl-tk libio-stty-perl
+
+apt-get install ttf-mscorefonts-installer
+
+# How to get fonts
+
+http://downloads.sourceforge.net/corefonts/andale32.exe
+http://downloads.sourceforge.net/corefonts/arial32.exe
+http://downloads.sourceforge.net/corefonts/arialb32.exe
+http://downloads.sourceforge.net/corefonts/comic32.exe
+http://downloads.sourceforge.net/corefonts/courie32.exe
+http://downloads.sourceforge.net/corefonts/georgi32.exe
+http://downloads.sourceforge.net/corefonts/impact32.exe
+http://downloads.sourceforge.net/corefonts/times32.exe
+http://downloads.sourceforge.net/corefonts/trebuc32.exe
+http://downloads.sourceforge.net/corefonts/verdan32.exe
+http://downloads.sourceforge.net/corefonts/webdin32.exe
+
+TMP=`mktemp -d`
+cd $TMP
+grep Url: /usr/share/package-data-downloads/ttf-mscorefonts-installer | awk '{print $2}' | xargs -n 1 wget
+sudo /usr/lib/msttcorefonts/update-ms-fonts $TMP/*
+cd -
+rm -rf $TMP
+
+###
+
+mkdir ~/.fonts
+cp /usr/share/fonts/truetype/msttcorefonts/* ~/.fonts
+cd ~/.fonts
+mkfontscale
+mkfontdir
+xset +fp $HOME/.fonts
+
