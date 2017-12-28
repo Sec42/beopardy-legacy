@@ -195,7 +195,7 @@ if($soundd){
 
 print "Reading questions....\n";
 my %jdata;
-open (J,"<Jeopardy") || die;
+open (J,"<:encoding(UTF-8)","Jeopardy") || die;
 my ($nam,$c);
 while (<J>){
 	chomp;
@@ -236,7 +236,7 @@ sub read_game{
 	my $title=$1;		# Titel des Spielfelds.
 
 	print "\nReading game '$title' ...\n";
-	open(G,"<$gamefile") || die;
+	open(G,"<:encoding(UTF-8)","$gamefile") || die;
 	while (<G>){
 		chomp;
 		next if (/^\s*(#|$)/);
@@ -263,7 +263,7 @@ sub read_game{
 
 	if($savefile){
 		my($ts)=logname();
-		open(SAV,">$gamefile.$ts");
+		open(SAV,">$gamefile.$$.$ts");
 		select(SAV);$|=1;
 		select(STDOUT);
 	}else{
@@ -299,7 +299,7 @@ print "Title-Font:\n$tfont\n" if($debug);
 my $sfont=$tl->X11Font('-*-arial-medium-r-*-*-25-*-*-*-*-*-iso8859-*');
 print "Small-Font:\n$sfont\n" if($debug);
 
-my $fixedfont=$tl->X11Font('-*-courier 10 pitch-medium-r-*-*-70-*-*-*-*-*-iso8859-*');
+my $fixedfont=$tl->X11Font('-*-courier 10 pitch-medium-r-*-*-60-*-*-*-*-*-iso8859-*');
 print "Fixed-Font:\n$fixedfont\n" if($debug);
 
 my $utf8font=$tl->X11Font('-*-arial-medium-r-*-*-30-*-*-*-*-*-iso8859-*');
