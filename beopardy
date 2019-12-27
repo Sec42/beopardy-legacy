@@ -19,7 +19,8 @@ use FileHandle;
 use Getopt::Std;
 use IO::Handle;
 use Encode;
-use IO::Stty;
+
+binmode(STDOUT, ":utf8");
 
 # Global options. Set via getopt.
 my $debug=0;
@@ -32,6 +33,7 @@ my $mood=0;						# Publish mood?
 my $socket=0;					# tty emulated by tcp socket?
 my $geometry=0;					# How big should I be?
 my $readfile;					# Should I read from a file?
+my $questfile="Jeopardy";		# Where are the questions?
 my $savefile=0;					# Should I save to a file?
 
 my $global_question_inhibit=0;
@@ -65,7 +67,7 @@ sub _ {
 };
 
 my %opt;
-getopts('ydoftsg:r:hwbm', \%opt);
+getopts('ydoftsg:r:hwbmi:', \%opt);
 
 # Possible screen sizes
 my %screen=( 320 => 200,
@@ -89,6 +91,7 @@ beopardy -options Gamefile Player1 Player2 ...
 -s		Socket. Emulate Tty input via tcp socket (port 3333)
 -b		Beopardy splashscreen. Default for serial input.
 -r <file>	Read saved game from File.
+-i <file>	Read questions from File.
 -w		Save game progress for reading with -r.
 -y		Contact soundd at localhost 32001
 -m		Moodlamp support. Works via soundd (requires -y)
@@ -122,6 +125,16 @@ if($opt{r}){ # Read savefile
 		$readfile=$opt{r};
 	};
 };
+
+if($opt{i}){ # Change questfile
+	if ( -f $opt{i} ){
+		$questfile=$opt{i};
+	}elsif( -f "Jeopardy.$opt{i}"){
+		$questfile="Jeopardy.$opt{i}";
+	}else{
+		die "Can't find game: $opt{i}";
+	}
+}
 
 if ($socket){$tty=1};	# socket emulates tty.
 if ($tty){$splash=1};	# tty requires splash.
@@ -195,12 +208,13 @@ if($soundd){
 
 print "Reading questions....\n";
 my %jdata;
-open (J,"<:encoding(UTF-8)","Jeopardy") || die;
+open (J,"<:encoding(UTF-8)",$questfile) || die;
 my ($nam,$c);
 while (<J>){
 	chomp;
 	next if ((!defined $nam) && (!/^>/));
 	next if /^\s*(#|$)/;
+	next if /^------*$/;
 	if (/^>(.*)/){
 		if(defined $nam){
 			printf "%-20s:%2d\n",$nam,$c if ($debug);
@@ -240,6 +254,7 @@ sub read_game{
 	while (<G>){
 		chomp;
 		next if (/^\s*(#|$)/);
+		s/^>//;
 		push @Cat,$_;
 	};
 	close(G);
@@ -285,6 +300,7 @@ if ($#ARGV>0){
 
 
 my @colors=qw(darkgrey darkred darkgreen darkblue darkcyan yellow);
+@colors=qw(darkgrey darkred darkgreen darkcyan darkmagenta yellow);
 
 unshift @players,"Nobody";
 my @points;
@@ -301,6 +317,9 @@ print "Small-Font:\n$sfont\n" if($debug);
 
 my $fixedfont=$tl->X11Font('-*-courier 10 pitch-medium-r-*-*-60-*-*-*-*-*-iso8859-*');
 print "Fixed-Font:\n$fixedfont\n" if($debug);
+
+my $sfixedfont=$tl->X11Font('-*-courier 10 pitch-medium-r-*-*-30-*-*-*-*-*-iso8859-*');
+print "Small-Fixed-Font:\n$sfixedfont\n" if($debug);
 
 my $utf8font=$tl->X11Font('-*-arial-medium-r-*-*-30-*-*-*-*-*-iso8859-*');
 print "UTF8-Font:\n$utf8font\n" if($debug);
@@ -704,8 +723,11 @@ sub selectQuest{
 	if ($txt =~ s/^\[fixed\]//){
 		$magicfont=$fixedfont;
 	};
+	if ($txt =~ s/^\[sfixed\]//){
+		$magicfont=$sfixedfont;
+	};
 	if ($txt =~ s/^\[utf8\]//){
-		$txt=Encode::decode_utf8($txt);
+#		$txt=Encode::decode_utf8($txt);
 	};
 		if(defined($fnam)&&($typ eq "snd")){
 			if(!$soundd){$txt.="\n[ERR:Nosound]"};
@@ -844,6 +866,7 @@ sub ser_dis{
 
 sub mood{
 	return if (!$soundd);
+	return if (!$mood);
 	my($sound)=(shift);
 	print Soundd "M $sound\r\n";
 	Soundd->flush();

@@ -32,3 +32,8 @@ mkfontscale
 mkfontdir
 xset +fp $HOME/.fonts
 
+###
+
+apt-get purge modemmanager
+screen /dev/ttyUSB0 19200
+# add user to group dialout

@@ -1,4 +1,0 @@
-dev=/dev/ttyUSB0
-#stty 19200 -crtscts -icrnl <$dev.init
-stty 19200 -crtscts -icrnl <$dev
-echo "~." to leave cu
